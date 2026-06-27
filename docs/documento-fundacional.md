@@ -203,14 +203,14 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 
 ## Estado actual
 
-| Item                          | Estado                                                                             |
-| ----------------------------- | ---------------------------------------------------------------------------------- |
-| Decisión arquitectural        | ✅ Tomada — 2026-06-26                                                             |
-| Repositorio                   | ✅ Creado — `EurekaMD-net/intelligence-ops-mcp`                                    |
-| Phase 1 — MCP Core (Postgres) | ✅ Completado — 2026-06-27 (3 tools, read-only estructural, audit trail; 36 tests) |
-| Phase 2                       | 🔲 Pendiente                                                                       |
-| Phase 3                       | 🔲 Pendiente                                                                       |
-| Phase 4                       | 🔲 Pendiente                                                                       |
+| Item                                   | Estado                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Decisión arquitectural                 | ✅ Tomada — 2026-06-26                                                                                                    |
+| Repositorio                            | ✅ Creado — `EurekaMD-net/intelligence-ops-mcp`                                                                           |
+| Phase 1 — MCP Core (Postgres)          | ✅ Completado — 2026-06-27 (3 tools, read-only estructural, audit trail; 36 tests)                                        |
+| Phase 2 — Schema Discovery + SQL Agent | ✅ Completado — 2026-06-27 (`get_schema_context` + `validate_query` + `retail_sql_agent` prompt; LLM host-side; 42 tests) |
+| Phase 3                                | 🔲 Pendiente                                                                                                              |
+| Phase 4                                | 🔲 Pendiente                                                                                                              |
 
 ---
 

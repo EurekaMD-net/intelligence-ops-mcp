@@ -7,21 +7,28 @@ self-hosted alternative to Wilab: the client's data never leaves their infrastru
 SQL behind every answer is auditable. The LLM (the "SQL Agent") lives in the EurekaMS host and
 drives this server's tools — the agent asks, this server safely reads.
 
-## Status — Phase 1 (MCP Core, Postgres) ✅
+## Status — Phase 2 (Schema Discovery + SQL-agent scaffolding) ✅
 
-The three MCP tools work against any Postgres database. Read-only is enforced structurally
-(read-only role + read-only transaction), so writes are impossible. 20 unit tests + a 6-test
-integration suite (real Postgres) pass. See [`docs/documento-fundacional.md`](docs/documento-fundacional.md)
-for the full architecture and the phase roadmap; the Phase-1 build plan + Wilab-parity matrix
-live in the EurekaMS workspace (`jarvis-kb/projects/eurekaMS/intelligence-ops-mcp/code/plan-phase1.md`).
+Five MCP tools + a SQL-agent prompt work against any Postgres database. Read-only is enforced
+structurally (read-only role + read-only transaction + extended-protocol single-statement), so
+writes are impossible. 28 unit tests + a 14-test integration suite (real Postgres) pass — 42 total.
+See [`docs/documento-fundacional.md`](docs/documento-fundacional.md) for the full architecture and
+the phase roadmap; the build plan + Wilab-parity matrix live in the EurekaMS workspace
+(`jarvis-kb/projects/eurekaMS/intelligence-ops-mcp/code/plan-phase1.md`).
 
-## The 3 MCP tools
+## The 5 MCP tools
 
-| Tool             | Input                        | Returns                                                                    |
-| ---------------- | ---------------------------- | -------------------------------------------------------------------------- |
-| `list_tables`    | `schema?` (default `public`) | tables + row-count estimate + comment                                      |
-| `describe_table` | `table`, `schema?`           | columns (type/nullable/default), PKs, FK references, indexes, row estimate |
-| `execute_query`  | `sql`, `params?`, `limit?`   | columns + rows + `executionMs` + `truncated`                               |
+| Tool                 | Input                        | Returns                                                                                      |
+| -------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- |
+| `list_tables`        | `schema?` (default `public`) | tables + row-count estimate + comment                                                        |
+| `describe_table`     | `table`, `schema?`           | columns (type/nullable/default), PKs, FK references, indexes, row estimate                   |
+| `get_schema_context` | `schema?`                    | **whole schema** in one call — every table's columns + the FK relationship graph (LLM-ready) |
+| `validate_query`     | `sql`, `params?`             | `{valid, plan}` or `{valid:false, reason}` — `EXPLAIN` (no execute) pre-check                |
+| `execute_query`      | `sql`, `params?`, `limit?`   | columns + rows + `executionMs` + `truncated`                                                 |
+
+Plus the **`retail_sql_agent` prompt** (`question` arg) — scaffolds the host LLM as a read-only
+retail analyst over the discover → generate → validate → execute → iterate loop, with retail
+few-shot examples. The LLM inference stays in the host; this server only provides the tools + prompt.
 
 ## Security model — read-only is _structural_, not a regex
 
@@ -32,9 +39,12 @@ false-positive on legitimate columns like `created_at`/`updated_at`). It is enfo
    every `execute_query` runs inside `BEGIN TRANSACTION READ ONLY … ROLLBACK`. The engine refuses
    any write: _"cannot execute … in a read-only transaction."_
 2. **Single statement** — input with a second `;`-separated statement is rejected (no `SELECT 1; DROP …`).
-3. **Subquery-wrapped, row-capped** — the query runs as `SELECT * FROM (<your sql>) LIMIT n`, which
-   also blocks data-modifying CTEs and bounds result size (`statement_timeout` caps runtime).
-4. **Whitelist + length cap** — must start with `SELECT`/`WITH`, ≤ 4000 chars (a cheap first filter).
+3. **Server-side cursor, row- and memory-capped** — results stream through a cursor (`read(n+1)`),
+   so the row cap can't be stripped by a trailing comment and pg never buffers the whole table;
+   `statement_timeout` caps runtime. All execution (`execute_query` and `validate_query`'s EXPLAIN)
+   uses the extended protocol — Parse rejects multi-statement input authoritatively.
+4. **Whitelist + length cap** — must start with `SELECT`/`WITH`, ≤ 4000 chars; a cheap first filter
+   (the extended-protocol Parse is the authoritative single-statement guard).
 5. **Audit trail** — every query (success or rejection) is logged to local SQLite (`query_log`).
 
 Create the read-only role once on the client DB:
