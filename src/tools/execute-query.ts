@@ -3,6 +3,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { PostgresConnector } from "../connector/postgres.js";
 import type { AuditTrail } from "../audit/trail.js";
 import { validateSql, MAX_SQL_LENGTH } from "../validator/sql.js";
+import { toMarkdownTable } from "../render/markdown.js";
+import { inferEChartsSpec } from "../render/echarts.js";
 import { ok, fail } from "./result.js";
 
 export function registerExecuteQuery(
@@ -35,9 +37,15 @@ export function registerExecuteQuery(
           .positive()
           .optional()
           .describe("Max rows to return (default 100; capped by the server)."),
+        render: z
+          .array(z.enum(["table", "chart"]))
+          .optional()
+          .describe(
+            'Optional rendered forms returned alongside the rows, in one pass: "table" → a markdown table; "chart" → a heuristic ECharts spec (bar for category+numeric, line for time-series) inferred from the result shape. You still write the narrative, and may refine or replace the chart.',
+          ),
       },
     },
-    async ({ sql, params, limit }) => {
+    async ({ sql, params, limit, render }) => {
       const v = validateSql(sql);
       if (!v.valid) {
         audit.log({ sql, params, error: v.reason });
@@ -52,7 +60,17 @@ export function registerExecuteQuery(
           rowCount: result.rowCount,
           execMs: result.executionMs,
         });
-        return ok(result);
+        // Deterministic rendering (no LLM) folded in one pass when requested.
+        const payload: Record<string, unknown> = { ...result };
+        if (render?.includes("table")) {
+          payload.markdown = toMarkdownTable(result.columns, result.rows);
+        }
+        if (render?.includes("chart")) {
+          const c = inferEChartsSpec(result.columns, result.rows);
+          payload.chart = c.spec;
+          if (!c.spec) payload.chartReason = c.reason;
+        }
+        return ok(payload);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         audit.log({

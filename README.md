@@ -7,24 +7,29 @@ self-hosted alternative to Wilab: the client's data never leaves their infrastru
 SQL behind every answer is auditable. The LLM (the "SQL Agent") lives in the EurekaMS host and
 drives this server's tools — the agent asks, this server safely reads.
 
-## Status — Phase 2 (Schema Discovery + SQL-agent scaffolding) ✅
+## Status — Phase 3 (Result Renderer) ✅
 
-Five MCP tools + a SQL-agent prompt work against any Postgres database. Read-only is enforced
+Five MCP tools + a SQL-agent prompt work against any Postgres database, and `execute_query` can
+now return a markdown table + a heuristic ECharts spec in one pass. Read-only is enforced
 structurally (read-only role + read-only transaction + extended-protocol single-statement), so
-writes are impossible. 28 unit tests + a 14-test integration suite (real Postgres) pass — 42 total.
+writes are impossible. 39 unit tests + a 19-test integration suite (real Postgres) pass — 58 total.
 See [`docs/documento-fundacional.md`](docs/documento-fundacional.md) for the full architecture and
 the phase roadmap; the build plan + Wilab-parity matrix live in the EurekaMS workspace
 (`jarvis-kb/projects/eurekaMS/intelligence-ops-mcp/code/plan-phase1.md`).
 
 ## The 5 MCP tools
 
-| Tool                 | Input                        | Returns                                                                                      |
-| -------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- |
-| `list_tables`        | `schema?` (default `public`) | tables + row-count estimate + comment                                                        |
-| `describe_table`     | `table`, `schema?`           | columns (type/nullable/default), PKs, FK references, indexes, row estimate                   |
-| `get_schema_context` | `schema?`                    | **whole schema** in one call — every table's columns + the FK relationship graph (LLM-ready) |
-| `validate_query`     | `sql`, `params?`             | `{valid, plan}` or `{valid:false, reason}` — `EXPLAIN` (no execute) pre-check                |
-| `execute_query`      | `sql`, `params?`, `limit?`   | columns + rows + `executionMs` + `truncated`                                                 |
+| Tool                 | Input                                 | Returns                                                                                                                                   |
+| -------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_tables`        | `schema?` (default `public`)          | tables + row-count estimate + comment                                                                                                     |
+| `describe_table`     | `table`, `schema?`                    | columns (type/nullable/default), PKs, FK references, indexes, row estimate                                                                |
+| `get_schema_context` | `schema?`                             | **whole schema** in one call — every table's columns + the FK relationship graph (LLM-ready)                                              |
+| `validate_query`     | `sql`, `params?`                      | `{valid, plan}` or `{valid:false, reason}` — `EXPLAIN` (no execute) pre-check                                                             |
+| `execute_query`      | `sql`, `params?`, `limit?`, `render?` | columns + rows + `executionMs` + `truncated`; with `render:["table","chart"]` also a markdown table + a heuristic ECharts spec (one pass) |
+
+**Result rendering is deterministic** (no LLM): category+numeric → bar, date-like category → line,
+else table-only. The host writes the narrative and may refine or replace the chart. (Markdown cells
+are escaped but are untrusted data — render as text/safe-markdown, never raw HTML.)
 
 Plus the **`retail_sql_agent` prompt** (`question` arg) — scaffolds the host LLM as a read-only
 retail analyst over the discover → generate → validate → execute → iterate loop, with retail

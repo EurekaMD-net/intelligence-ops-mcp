@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   const server = createServer(connector, audit);
   await server.connect(new StdioServerTransport());
   console.error(
-    "[iomcp] intelligence-ops-mcp v0.2 on stdio — tools: list_tables, describe_table, get_schema_context, validate_query, execute_query; prompt: retail_sql_agent",
+    "[iomcp] intelligence-ops-mcp v0.3 on stdio — tools: list_tables, describe_table, get_schema_context, validate_query, execute_query (render: table/chart); prompt: retail_sql_agent",
   );
 
   const shutdown = async () => {

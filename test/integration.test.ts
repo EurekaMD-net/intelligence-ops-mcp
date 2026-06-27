@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import pg from "pg";
 import { PostgresConnector } from "../src/connector/postgres.js";
 import type { ConnectorConfig } from "../src/connector/types.js";
+import { inferEChartsSpec } from "../src/render/echarts.js";
 
 // Integration tests need a throwaway Postgres. Set TEST_PG_URL to run them;
 // otherwise they skip (so `npm test` stays green without Docker).
@@ -232,5 +233,22 @@ describe.skipIf(!TEST_URL)("PostgresConnector (integration)", () => {
       "SELECT count(*)::int AS c FROM sucursales",
     );
     expect(after.rows[0]).toEqual(before.rows[0]);
+  });
+
+  it("renders a bar chart from a real GROUP BY SUM (pg returns the sum as a string)", async () => {
+    const r = await connector.runUserQuery(
+      "SELECT s.nombre, SUM(v.cantidad) AS u FROM ventas v JOIN sucursales s ON s.id = v.sucursal_id GROUP BY s.nombre ORDER BY u DESC",
+      [],
+      100,
+    );
+    const chart = inferEChartsSpec(r.columns, r.rows);
+    expect(chart.spec).not.toBeNull();
+    const series = (
+      chart.spec as { series: { type: string; data: unknown[] }[] }
+    ).series[0]!;
+    expect(series.type).toBe("bar");
+    expect(
+      series.data.every((n) => typeof n === "number" && Number.isFinite(n)),
+    ).toBe(true);
   });
 });
