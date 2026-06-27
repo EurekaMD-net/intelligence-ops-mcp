@@ -24,13 +24,13 @@ Las razones son tres:
 
 ### Las 5 capacidades
 
-| # | Capacidad | Qué resuelve |
-|---|-----------|--------------|
-| 1 | **MCP Connector** | Conexión read-only a la base de datos del cliente (Postgres primero, luego MySQL, BigQuery, Snowflake) |
-| 2 | **Schema Discovery** | El agente aprende el esquema del cliente automáticamente: tablas, columnas, tipos, relaciones |
-| 3 | **SQL Agent** | Genera SQL a partir de lenguaje natural → valida la consulta → la ejecuta → regresa resultado estructurado |
-| 4 | **Result Renderer** | Transforma el resultado en narrativa + ECharts (tablas, barras, líneas de tendencia) |
-| 5 | **Audit Trail** | Registra cada consulta, el SQL generado, el tiempo de respuesta y el resultado — para trazabilidad y mejora continua |
+| #   | Capacidad            | Qué resuelve                                                                                                         |
+| --- | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 1   | **MCP Connector**    | Conexión read-only a la base de datos del cliente (Postgres primero, luego MySQL, BigQuery, Snowflake)               |
+| 2   | **Schema Discovery** | El agente aprende el esquema del cliente automáticamente: tablas, columnas, tipos, relaciones                        |
+| 3   | **SQL Agent**        | Genera SQL a partir de lenguaje natural → valida la consulta → la ejecuta → regresa resultado estructurado           |
+| 4   | **Result Renderer**  | Transforma el resultado en narrativa + ECharts (tablas, barras, líneas de tendencia)                                 |
+| 5   | **Audit Trail**      | Registra cada consulta, el SQL generado, el tiempo de respuesta y el resultado — para trazabilidad y mejora continua |
 
 ### El loop completo
 
@@ -52,12 +52,12 @@ Audit Trail registra el ciclo completo
 
 Las mismas que el agente de inventario demuestra en el landing de EurekaMS:
 
-- *¿Cuál es el stock actual de la referencia 4521 en mis 5 tiendas?*
-- *¿Qué producto tiene el throughput más bajo en los últimos 30 días?*
-- *¿En qué tienda hay exceso de inventario que podría redirigir a otra con escasez?*
-- *¿Cuál fue la jornada de mayor venta la semana pasada y a qué hora se concentró?*
-- *Dame los SKUs con stock bajo que históricamente se agotan en menos de 3 días.*
-- *¿Cuánto dinero tengo paralizado en inventario muerto en la tienda del norte?*
+- _¿Cuál es el stock actual de la referencia 4521 en mis 5 tiendas?_
+- _¿Qué producto tiene el throughput más bajo en los últimos 30 días?_
+- _¿En qué tienda hay exceso de inventario que podría redirigir a otra con escasez?_
+- _¿Cuál fue la jornada de mayor venta la semana pasada y a qué hora se concentró?_
+- _Dame los SKUs con stock bajo que históricamente se agotan en menos de 3 días._
+- _¿Cuánto dinero tengo paralizado en inventario muerto en la tienda del norte?_
 
 La respuesta llega en menos de 60 segundos desde la base de datos del cliente — sin dashboards preconstruidos, sin reportes programados, sin intermediarios.
 
@@ -184,11 +184,11 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 
 ## Puntos de integración con EurekaMS
 
-| Módulo EurekaMS | Cómo usa intelligence-ops-mcp |
-|-----------------|-------------------------------|
-| **Intelligence Ops** | SQL Agent principal — toda la experiencia conversacional de datos |
-| **Voice Solutions** | Contexto de inventario para el agente de voz: "¿hay stock de X antes de ofrecer en llamada?" |
-| **Territory Ops** | Cruza datos del cliente (ventas por zona) con DENUE 6.1M para validar oportunidad de apertura |
+| Módulo EurekaMS      | Cómo usa intelligence-ops-mcp                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| **Intelligence Ops** | SQL Agent principal — toda la experiencia conversacional de datos                             |
+| **Voice Solutions**  | Contexto de inventario para el agente de voz: "¿hay stock de X antes de ofrecer en llamada?"  |
+| **Territory Ops**    | Cruza datos del cliente (ventas por zona) con DENUE 6.1M para validar oportunidad de apertura |
 
 ---
 
@@ -203,16 +203,16 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 
 ## Estado actual
 
-| Item | Estado |
-|------|--------|
-| Decisión arquitectural | ✅ Tomada — 2026-06-26 |
-| Repositorio | ✅ Creado — `EurekaMD-net/intelligence-ops-mcp` |
-| Phase 1 | 🔲 Pendiente |
-| Phase 2 | 🔲 Pendiente |
-| Phase 3 | 🔲 Pendiente |
-| Phase 4 | 🔲 Pendiente |
+| Item                          | Estado                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| Decisión arquitectural        | ✅ Tomada — 2026-06-26                                                             |
+| Repositorio                   | ✅ Creado — `EurekaMD-net/intelligence-ops-mcp`                                    |
+| Phase 1 — MCP Core (Postgres) | ✅ Completado — 2026-06-27 (3 tools, read-only estructural, audit trail; 36 tests) |
+| Phase 2                       | 🔲 Pendiente                                                                       |
+| Phase 3                       | 🔲 Pendiente                                                                       |
+| Phase 4                       | 🔲 Pendiente                                                                       |
 
 ---
 
-*Documento fundacional v1.0 — 2026-06-26*
-*Autor: EurekaMD / Federico Moctezuma*
+_Documento fundacional v1.0 — 2026-06-26_
+_Autor: EurekaMD / Federico Moctezuma_
