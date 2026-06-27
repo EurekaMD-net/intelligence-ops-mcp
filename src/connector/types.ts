@@ -53,3 +53,25 @@ export interface QueryResult {
   /** true when the result hit the row cap and more rows exist. */
   truncated: boolean;
 }
+
+// --- Phase 2: schema discovery ---
+
+export interface SchemaTable {
+  name: string;
+  comment: string | null;
+  rowCountEstimate: number;
+  columns: ColumnInfo[];
+}
+
+/** A foreign-key edge: `from` (table.column) references `to` (schema.table.column). */
+export interface FkEdge {
+  from: string;
+  to: string;
+}
+
+/** Whole-schema context, LLM-ready: every table's shape + the FK relationship graph. */
+export interface SchemaContext {
+  schema: string;
+  tables: SchemaTable[];
+  relationships: FkEdge[];
+}

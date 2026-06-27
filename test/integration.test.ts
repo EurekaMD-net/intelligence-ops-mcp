@@ -158,4 +158,79 @@ describe.skipIf(!TEST_URL)("PostgresConnector (integration)", () => {
       "public.precios_region.producto_id",
     );
   });
+
+  // --- Phase 2 ---
+
+  it("get_schema_context returns every table + the FK relationship graph", async () => {
+    const ctx = await connector.getSchemaContext("public");
+    const names = ctx.tables.map((t) => t.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "sucursales",
+        "productos",
+        "inventario",
+        "ventas",
+        "promociones",
+        "precios_region",
+      ]),
+    );
+    const ventas = ctx.tables.find((t) => t.name === "ventas");
+    expect(ventas?.columns.find((c) => c.name === "id")?.isPk).toBe(true);
+    expect(ctx.relationships).toEqual(
+      expect.arrayContaining([
+        { from: "ventas.sucursal_id", to: "public.sucursales.id" },
+        { from: "promociones.region", to: "public.precios_region.region" },
+        {
+          from: "promociones.producto_id",
+          to: "public.precios_region.producto_id",
+        },
+      ]),
+    );
+  });
+
+  it("explainQuery returns a plan for a valid SELECT without executing it", async () => {
+    const plan = await connector.explainQuery(
+      "SELECT * FROM sucursales WHERE id = $1",
+      [1],
+    );
+    expect(plan.join("\n")).toMatch(/Scan/i);
+  });
+
+  it("explainQuery never executes a write (EXPLAIN, no ANALYZE)", async () => {
+    const before = await connector.runUserQuery(
+      "SELECT count(*)::int AS c FROM sucursales",
+    );
+    try {
+      await connector.explainQuery(
+        "WITH x AS (INSERT INTO sucursales(nombre,ciudad) VALUES('h','x') RETURNING id) SELECT * FROM x",
+      );
+    } catch {
+      /* may error in the read-only txn — either way nothing is inserted */
+    }
+    const after = await connector.runUserQuery(
+      "SELECT count(*)::int AS c FROM sucursales",
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+  });
+
+  it("explainQuery rejects an injected second statement (extended protocol guard)", async () => {
+    // The E'\'' escape-string form slips a real ';' past the best-effort validator scan;
+    // the cursor's extended-protocol Parse is the authoritative guard and must reject it.
+    const before = await connector.runUserQuery(
+      "SELECT count(*)::int AS c FROM sucursales",
+    );
+    await expect(
+      connector.explainQuery("SELECT E'\\'' ; SELECT 1/0"),
+    ).rejects.toThrow();
+    // pg_sleep injection must NOT run (no multi-statement execution / DoS)
+    const t0 = Date.now();
+    await expect(
+      connector.explainQuery("SELECT E'\\'' ; SELECT pg_sleep(2)"),
+    ).rejects.toThrow();
+    expect(Date.now() - t0).toBeLessThan(1500);
+    const after = await connector.runUserQuery(
+      "SELECT count(*)::int AS c FROM sucursales",
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+  });
 });
