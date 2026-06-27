@@ -1,55 +1,108 @@
 # intelligence-ops-mcp
 
-> MCP server + SQL agent layer for retail intelligence — runs on the client's own data warehouse.
+> MCP server + read-only SQL layer for retail intelligence — runs on the client's own Postgres warehouse.
 
-Part of the [EurekaMS](https://github.com/EurekaMD-net) Intelligence Ops module. Replaces third-party data connectors with a self-owned, client-side stack.
+Part of the [EurekaMS](https://github.com/EurekaMD-net) **Intelligence Ops** pillar. A
+self-hosted alternative to Wilab: the client's data never leaves their infrastructure, and the
+SQL behind every answer is auditable. The LLM (the "SQL Agent") lives in the EurekaMS host and
+drives this server's tools — the agent asks, this server safely reads.
 
----
+## Status — Phase 1 (MCP Core, Postgres) ✅
 
-## What it does
+The three MCP tools work against any Postgres database. Read-only is enforced structurally
+(read-only role + read-only transaction), so writes are impossible. 20 unit tests + a 6-test
+integration suite (real Postgres) pass. See [`docs/documento-fundacional.md`](docs/documento-fundacional.md)
+for the full architecture and the phase roadmap; the Phase-1 build plan + Wilab-parity matrix
+live in the EurekaMS workspace (`jarvis-kb/projects/eurekaMS/intelligence-ops-mcp/code/plan-phase1.md`).
 
-Exposes 3 MCP tools that enable a natural-language SQL agent over any client database:
+## The 3 MCP tools
 
-| Tool | Description |
-|------|-------------|
-| `list_tables` | Lists accessible tables in the client's schema |
-| `describe_table` | Returns columns, types, constraints, and relationships |
-| `execute_query` | Executes read-only SQL, returns rows + metadata |
+| Tool             | Input                        | Returns                                                                    |
+| ---------------- | ---------------------------- | -------------------------------------------------------------------------- |
+| `list_tables`    | `schema?` (default `public`) | tables + row-count estimate + comment                                      |
+| `describe_table` | `table`, `schema?`           | columns (type/nullable/default), PKs, FK references, indexes, row estimate |
+| `execute_query`  | `sql`, `params?`, `limit?`   | columns + rows + `executionMs` + `truncated`                               |
 
-The agent uses these tools to answer retail intelligence questions in <60s from the client's own ERP/database — no data extraction, no external sync.
+## Security model — read-only is _structural_, not a regex
 
-## Architecture
+The "no writes" guarantee does **not** rely on keyword blocklists (which both miss attacks and
+false-positive on legitimate columns like `created_at`/`updated_at`). It is enforced in layers:
 
+1. **Read-only connection** — point the server at a Postgres role with only `GRANT SELECT`, **and**
+   every `execute_query` runs inside `BEGIN TRANSACTION READ ONLY … ROLLBACK`. The engine refuses
+   any write: _"cannot execute … in a read-only transaction."_
+2. **Single statement** — input with a second `;`-separated statement is rejected (no `SELECT 1; DROP …`).
+3. **Subquery-wrapped, row-capped** — the query runs as `SELECT * FROM (<your sql>) LIMIT n`, which
+   also blocks data-modifying CTEs and bounds result size (`statement_timeout` caps runtime).
+4. **Whitelist + length cap** — must start with `SELECT`/`WITH`, ≤ 4000 chars (a cheap first filter).
+5. **Audit trail** — every query (success or rejection) is logged to local SQLite (`query_log`).
+
+Create the read-only role once on the client DB:
+
+```sql
+CREATE ROLE readonly_user LOGIN PASSWORD '…';
+GRANT CONNECT ON DATABASE client_db TO readonly_user;
+GRANT USAGE ON SCHEMA public TO readonly_user;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO readonly_user;
 ```
-Natural language question
-    → Schema Discovery (context injection)
-    → SQL Agent (generate → validate → execute)
-    → Result Renderer (narrative + ECharts)
-    → Audit Trail (log every query cycle)
+
+## Configuration (environment variables)
+
+| Var                                   | Default                           | Purpose                                           |
+| ------------------------------------- | --------------------------------- | ------------------------------------------------- |
+| `PG_HOST` / `PG_PORT` / `PG_DATABASE` | `localhost` / `5432` / `postgres` | client warehouse                                  |
+| `PG_USER` / `PG_PASSWORD`             | `postgres` / —                    | **must be read-only**                             |
+| `PG_SSL`                              | `false`                           | `true` for external connections                   |
+| `PG_POOL_MAX`                         | `5`                               | connection pool size                              |
+| `PG_CONNECT_TIMEOUT_MS`               | `5000`                            | connect timeout                                   |
+| `PG_STATEMENT_TIMEOUT_MS`             | `30000`                           | per-query timeout                                 |
+| `MAX_RESULT_ROWS`                     | `1000`                            | hard row cap (a call's `limit` can't exceed this) |
+| `AUDIT_DB_PATH`                       | `./data/audit.db`                 | SQLite audit trail                                |
+| `AUDIT_RETENTION_DAYS`                | `90`                              | audit rows older than this are pruned at startup  |
+
+## Run
+
+```bash
+npm install
+npm run typecheck     # tsc --noEmit
+npm test              # 20 unit tests (integration skips without TEST_PG_URL)
+npm run build         # emit dist/
+npm start             # node dist/index.js  (stdio MCP server)
+npm run dev           # tsx src/index.ts     (no build)
 ```
 
-See [`docs/documento-fundacional.md`](docs/documento-fundacional.md) for full architecture, build phases, and integration map.
+Diagnostics go to **stderr** — stdout is the MCP (JSON-RPC) channel.
 
-## Build phases
+### Integration tests (real Postgres)
 
-- **Phase 1** — MCP Core (Postgres connector, SQL validator, audit trail) `← next`
-- **Phase 2** — Schema Discovery with semantic embeddings
-- **Phase 3** — ECharts result renderer
-- **Phase 4** — Multi-connector (MySQL, BigQuery, Snowflake)
+```bash
+docker run -d --name pg -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:5499:5432 postgres:16-alpine
+TEST_PG_URL="postgres://postgres:postgres@127.0.0.1:5499/postgres" npx vitest run test/integration.test.ts
+docker rm -f pg
+```
 
-## Stack
+The suite seeds `scripts/seed-demo.sql` and exercises all 3 tools, the row cap, the read-only
+transaction, and write rejection.
 
-- Node.js + TypeScript (ESM)
-- `@modelcontextprotocol/sdk`
-- `pg` (Postgres, Phase 1)
-- SQLite audit trail (local) or Supabase (cloud)
+### Use from Claude Desktop
 
-## Security model
-
-- All database connections are **read-only** at the connection level
-- SQL Validator blocks DDL and DML before execution (no INSERT/UPDATE/DELETE/DROP)
-- Client data never leaves the client's infrastructure
-- Audit Trail records every query for traceability
+```json
+{
+  "mcpServers": {
+    "intelligence-ops": {
+      "command": "node",
+      "args": ["/path/to/intelligence-ops-mcp/dist/index.js"],
+      "env": {
+        "PG_HOST": "…",
+        "PG_DATABASE": "…",
+        "PG_USER": "readonly_user",
+        "PG_PASSWORD": "…"
+      }
+    }
+  }
+}
+```
 
 ## License
 
