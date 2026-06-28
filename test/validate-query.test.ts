@@ -1,19 +1,26 @@
 import { describe, it, expect, afterAll } from "vitest";
 import pg from "pg";
-import { loadConnectorConfig } from "../src/connector/factory.js";
 import { PostgresConnector } from "../src/connector/postgres.js";
 import { MysqlConnector } from "../src/connector/mysql.js";
+import type { ConnectorConfig } from "../src/connector/types.js";
 
 // Constructing a pool opens no connection, so these stay DB-free. The classifier
 // (validity-error vs infra-error) now lives on each connector, per dialect.
-const pgc = new PostgresConnector(loadConnectorConfig({}));
-const myc = new MysqlConnector(
-  loadConnectorConfig({
-    IOMCP_DIALECT: "mysql",
-    MYSQL_DATABASE: "d",
-    MYSQL_USER: "ro",
-  }),
-);
+const relational = (dialect: "postgres" | "mysql"): ConnectorConfig => ({
+  dialect,
+  host: "localhost",
+  port: dialect === "postgres" ? 5432 : 3306,
+  database: "d",
+  user: "ro",
+  password: "",
+  ssl: false,
+  poolMax: 1,
+  connectTimeoutMs: 5000,
+  statementTimeoutMs: 30000,
+  maxRows: 1000,
+});
+const pgc = new PostgresConnector(relational("postgres"));
+const myc = new MysqlConnector(relational("mysql"));
 afterAll(async () => {
   await pgc.close();
   await myc.close();
