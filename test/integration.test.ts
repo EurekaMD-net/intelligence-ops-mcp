@@ -6,6 +6,8 @@ import pg from "pg";
 import { PostgresConnector } from "../src/connector/postgres.js";
 import type { ConnectorConfig } from "../src/connector/types.js";
 import { inferEChartsSpec } from "../src/render/echarts.js";
+import { StudioStore } from "../src/studio/store.js";
+import { compareValue, extractMonitorValue } from "../src/studio/monitor.js";
 
 // Integration tests need a throwaway Postgres. Set TEST_PG_URL to run them;
 // otherwise they skip (so `npm test` stays green without Docker).
@@ -251,5 +253,43 @@ describe.skipIf(!TEST_URL)("PostgresConnector (integration)", () => {
     expect(
       series.data.every((n) => typeof n === "number" && Number.isFinite(n)),
     ).toBe(true);
+  });
+
+  // --- Phase 5: SQL Studio + Automation primitives (data path vs real Postgres) ---
+
+  it("run_saved_query path: a saved query executes through the read-only connector", async () => {
+    const store = new StudioStore(":memory:");
+    try {
+      const version = store.saveQuery(
+        "stores",
+        "SELECT nombre FROM sucursales ORDER BY id",
+      );
+      expect(version).toBe(1);
+      const q = store.getSavedQuery("stores");
+      const r = await connector.runUserQuery(q!.sql, [], 100);
+      expect(r.rows.length).toBe(3);
+      expect(r.columns).toContain("nombre");
+    } finally {
+      store.close();
+    }
+  });
+
+  it("evaluate_monitor path: saved monitor SQL runs read-only and compares to threshold", async () => {
+    const store = new StudioStore(":memory:");
+    try {
+      store.saveMonitor({
+        name: "store_count",
+        sql: "SELECT count(*)::int AS value FROM sucursales",
+        operator: ">",
+        threshold: 2,
+      });
+      const m = store.getMonitor("store_count")!;
+      const r = await connector.runUserQuery(m.sql, m.params, 100);
+      const value = extractMonitorValue(r.columns, r.rows);
+      expect(value).toBe(3);
+      expect(compareValue(value!, m.operator, m.threshold)).toBe(true); // 3 > 2
+    } finally {
+      store.close();
+    }
   });
 });

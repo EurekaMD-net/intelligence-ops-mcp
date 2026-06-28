@@ -191,6 +191,19 @@ execute_query(sql: string, params?: unknown[]): QueryResult
   Gated; read-only = rol SELECT/USAGE + self-test `SHOW GRANTS` (solo grants directos) + `MULTI_STATEMENT_COUNT=1`.
 - [ ] MSSQL / ClickHouse (Docker-testables; en cola detrás del seam)
 
+### Phase 5 — SQL Studio + Automation (primitives) `[done]`
+
+Solo las PRIMITIVAS deterministas del lado del servidor; la UI, el scheduling (cron) y la
+entrega (Slack/ticket/email) viven en el host (Jarvis) — frontera del doc fundacional.
+
+- [x] **SQL Studio** — `saved_queries` versionadas en SQLite (`STUDIO_DB_PATH`): `save_query`
+      (cada save = versión nueva), `list/get/run/diff/delete_saved_query`. `run_saved_query`
+      ejecuta por el MISMO camino read-only que `execute_query`.
+- [x] **Automation** — `monitors` (SELECT + operador + umbral) en SQLite: `save/list/delete_monitor` + `evaluate_monitor` (corre el SQL read-only AHORA → `{triggered, value, rows}`). El host
+      llama `evaluate_monitor` en su cron y decide la entrega; el server NO agenda ni notifica.
+- [x] SQL guardado = texto que pasa por `validateSql` + connector read-only al correr/evaluar
+      (sin nueva superficie de escritura). 124 tests (88 unit + 17 PG + 19 MySQL). QA-audit PASS.
+
 ---
 
 ## Puntos de integración con EurekaMS
@@ -206,8 +219,10 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 ## Qué NO es
 
 - **No es un ETL.** No mueve datos del cliente. No los replica.
-- **No es un BI tool.** No tiene dashboards preconstruidos ni reportes programados.
-- **No es un producto standalone.** No tiene UI, no tiene autenticación propia.
+- **No es un BI tool.** No tiene dashboards preconstruidos ni reportes programados. (Phase 5 agrega
+  PRIMITIVAS — queries guardadas + definiciones de monitor — que el server persiste y EVALÚA on-demand;
+  el scheduling y la entrega siguen siendo del host, no del server.)
+- **No es un producto standalone.** No tiene UI, no tiene autenticación propia (la Studio UI es del host).
 - **No es Wilab.** Wilab era un proveedor externo. Este stack vive dentro del control de EurekaMD.
 
 ---
@@ -223,6 +238,7 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 | Phase 3 — Result Renderer              | ✅ Completado — 2026-06-27 (markdown + heurística ECharts deterministas en `execute_query` `render`; narrativa host-side; 58 tests)                                                       |
 | Phase 4 — Multi-connector              | ✅ Completado — 2026-06-28 (`Connector` interface + factory refusal-gate + MySQL connector real; 92 tests; v0.4.0)                                                                        |
 | Phase 4b — Cloud connectors            | 🧪 EXPERIMENTAL/UNVERIFIED — 2026-06-28 (BigQuery + Snowflake code-complete, gated tras `IOMCP_ENABLE_UNVERIFIED_DIALECTS`; 105 tests; v0.5.0). Runbook `docs/verify-cloud-connectors.md` |
+| Phase 5 — SQL Studio + Automation      | ✅ Completado — 2026-06-28 (primitivas server-side: saved_queries versionadas + monitors + evaluate_monitor; UI/cron/entrega = host; 15 tools, 124 tests; v0.6.0)                         |
 | MSSQL / ClickHouse                     | 🔲 Diferidos (Docker-testables; en cola detrás del seam)                                                                                                                                  |
 
 ---

@@ -7,15 +7,15 @@ self-hosted alternative to Wilab: the client's data never leaves their infrastru
 SQL behind every answer is auditable. The LLM (the "SQL Agent") lives in the EurekaMS host and
 drives this server's tools — the agent asks, this server safely reads.
 
-## Status — Phase 4b (Cloud connectors, experimental) ✅
+## Status — Phase 5 (SQL Studio + Automation primitives) ✅
 
-Five MCP tools + a SQL-agent prompt run against the client's **Postgres or MySQL** warehouse
-(both VERIFIED, real-DB integration-tested), selected by `IOMCP_DIALECT`. A `Connector` interface
-
-- factory make the dialect a swap-in; tools, prompt, and rendering are dialect-agnostic. Read-only
-  is enforced structurally per dialect (see below), and `execute_query` returns a markdown table + a
-  heuristic ECharts spec in one pass. 73 unit tests + two real-DB integration suites (15 Postgres,
-  17 MySQL) — **105 tests**.
+**15 MCP tools** + a SQL-agent prompt run against the client's **Postgres or MySQL** warehouse
+(both VERIFIED, real-DB integration-tested), selected by `IOMCP_DIALECT`. A `Connector` interface +
+factory make the dialect a swap-in; tools, prompt, and rendering are dialect-agnostic. Read-only is
+enforced structurally per dialect (see below). Phase 5 adds **SQL Studio** (versioned saved queries)
+and **Automation** (monitor definitions) PRIMITIVES — persist + evaluate only; UI, scheduling, and
+delivery stay in the host. 88 unit tests + two real-DB integration suites (17 Postgres, 19 MySQL) —
+**124 tests**.
 
 **Experimental (UNVERIFIED):** BigQuery + Snowflake connectors are code-complete but **not
 integration-tested** (cloud-credential-only — no CI-verifiable emulator). They are **disabled
@@ -27,7 +27,9 @@ See [`docs/documento-fundacional.md`](docs/documento-fundacional.md) for the ful
 the phase roadmap; the build plan + Wilab-parity matrix live in the EurekaMS workspace
 (`jarvis-kb/projects/eurekaMS/intelligence-ops-mcp/code/plan-phase1.md`).
 
-## The 5 MCP tools
+## MCP tools
+
+**Discovery + query (5):**
 
 | Tool                 | Input                                  | Returns                                                                                                                                   |
 | -------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -36,6 +38,19 @@ the phase roadmap; the build plan + Wilab-parity matrix live in the EurekaMS wor
 | `get_schema_context` | `schema?`                              | **whole schema** in one call — every table's columns + the FK relationship graph (LLM-ready)                                              |
 | `validate_query`     | `sql`, `params?`                       | `{valid, plan}` or `{valid:false, reason}` — `EXPLAIN` (no execute) pre-check                                                             |
 | `execute_query`      | `sql`, `params?`, `limit?`, `render?`  | columns + rows + `executionMs` + `truncated`; with `render:["table","chart"]` also a markdown table + a heuristic ECharts spec (one pass) |
+
+**SQL Studio — versioned saved queries (6):** `save_query` (each save = new version), `list_saved_queries`,
+`get_saved_query` (version?), `run_saved_query` (executes through the **same** read-only path + optional `render`),
+`diff_saved_queries` (deterministic line diff between two versions), `delete_saved_query`.
+
+**Automation — monitor definitions (4):** `save_monitor` (saved SELECT + operator + threshold), `list_monitors`,
+`evaluate_monitor` (runs the saved SQL read-only now → `{triggered, value, rows}`), `delete_monitor`.
+
+> **Boundary:** the server only **persists and evaluates** — it does **not** schedule or deliver.
+> The host (Jarvis) calls `evaluate_monitor` on its own cron and decides delivery (Slack/ticket/email),
+> and renders the Studio UI. Saved/monitor SQL is plain text that runs through the same read-only
+> connector path as `execute_query`, so every structural guarantee still applies. Studio/automation
+> state lives in its own SQLite (`STUDIO_DB_PATH`, default `./data/studio.db`).
 
 **Result rendering is deterministic** (no LLM): category+numeric → bar, date-like category → line,
 else table-only. The host writes the narrative and may refine or replace the chart. (Markdown cells
@@ -127,11 +142,12 @@ keeps working unchanged — same vars, same defaults, zero migration.
 
 **Shared (both dialects):**
 
-| Var                    | Default           | Purpose                                           |
-| ---------------------- | ----------------- | ------------------------------------------------- |
-| `MAX_RESULT_ROWS`      | `1000`            | hard row cap (a call's `limit` can't exceed this) |
-| `AUDIT_DB_PATH`        | `./data/audit.db` | SQLite audit trail                                |
-| `AUDIT_RETENTION_DAYS` | `90`              | audit rows older than this are pruned at startup  |
+| Var                    | Default            | Purpose                                           |
+| ---------------------- | ------------------ | ------------------------------------------------- |
+| `MAX_RESULT_ROWS`      | `1000`             | hard row cap (a call's `limit` can't exceed this) |
+| `AUDIT_DB_PATH`        | `./data/audit.db`  | SQLite audit trail                                |
+| `AUDIT_RETENTION_DAYS` | `90`               | audit rows older than this are pruned at startup  |
+| `STUDIO_DB_PATH`       | `./data/studio.db` | SQLite store for saved queries + monitors         |
 
 The SQL-agent prompt's placeholder style follows the dialect automatically: `$1, $2` for Postgres,
 `?` for MySQL (and `?` for the experimental cloud dialects).

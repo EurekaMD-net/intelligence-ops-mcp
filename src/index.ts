@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConnectorConfig, createConnector } from "./connector/factory.js";
 import type { Connector } from "./connector/types.js";
 import { AuditTrail } from "./audit/trail.js";
+import { StudioStore } from "./studio/store.js";
 import { createServer } from "./server.js";
 
 // NOTE: stdout is the MCP (JSON-RPC) channel — ALL diagnostics go to stderr.
@@ -12,6 +13,9 @@ async function main(): Promise<void> {
   const audit = new AuditTrail(
     process.env.AUDIT_DB_PATH ?? "./data/audit.db",
     Number(process.env.AUDIT_RETENTION_DAYS ?? 90),
+  );
+  const studio = new StudioStore(
+    process.env.STUDIO_DB_PATH ?? "./data/studio.db",
   );
 
   try {
@@ -24,10 +28,10 @@ async function main(): Promise<void> {
     );
   }
 
-  const server = createServer(connector, audit);
+  const server = createServer(connector, audit, studio);
   await server.connect(new StdioServerTransport());
   console.error(
-    `[iomcp] intelligence-ops-mcp v0.5 (${cfg.dialect}) on stdio — tools: list_tables, describe_table, get_schema_context, validate_query, execute_query (render: table/chart); prompt: retail_sql_agent`,
+    `[iomcp] intelligence-ops-mcp v0.6 (${cfg.dialect}) on stdio — 15 tools: discovery (list_tables, describe_table, get_schema_context), query (validate_query, execute_query render:table/chart), studio (save/list/get/run/diff/delete_saved_query), automation (save/list/delete_monitor, evaluate_monitor); prompt: retail_sql_agent`,
   );
 
   const shutdown = async () => {
@@ -35,6 +39,11 @@ async function main(): Promise<void> {
     await connector.close().catch(() => {});
     try {
       audit.close();
+    } catch {
+      /* already closed */
+    }
+    try {
+      studio.close();
     } catch {
       /* already closed */
     }

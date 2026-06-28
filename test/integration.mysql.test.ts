@@ -6,6 +6,8 @@ import mysql from "mysql2/promise";
 import { MysqlConnector } from "../src/connector/mysql.js";
 import { inferEChartsSpec } from "../src/render/echarts.js";
 import type { ConnectorConfig } from "../src/connector/types.js";
+import { StudioStore } from "../src/studio/store.js";
+import { compareValue, extractMonitorValue } from "../src/studio/monitor.js";
 
 // Needs a throwaway MySQL 8.0+. Set TEST_MYSQL_URL to run; otherwise skips (so
 // `npm test` stays green without Docker), mirroring the Postgres integration gate.
@@ -253,6 +255,40 @@ describe.skipIf(!TEST_URL)("MysqlConnector (integration)", () => {
       expect(Date.now() - t0).toBeLessThan(3000); // bounded ~1s, never 5s
     } finally {
       await short.close();
+    }
+  });
+
+  // --- Phase 5: SQL Studio + Automation primitives (data path vs real MySQL) ---
+
+  it("run_saved_query path: a saved query executes through the read-only connector", async () => {
+    const store = new StudioStore(":memory:");
+    try {
+      store.saveQuery("stores", "SELECT nombre FROM sucursales ORDER BY id");
+      const q = store.getSavedQuery("stores");
+      const r = await connector.runUserQuery(q!.sql, [], 100);
+      expect(r.rows.length).toBe(3);
+      expect(r.columns).toContain("nombre");
+    } finally {
+      store.close();
+    }
+  });
+
+  it("evaluate_monitor path: saved monitor SQL runs read-only and compares to threshold", async () => {
+    const store = new StudioStore(":memory:");
+    try {
+      store.saveMonitor({
+        name: "store_count",
+        sql: "SELECT COUNT(*) AS value FROM sucursales",
+        operator: ">",
+        threshold: 2,
+      });
+      const m = store.getMonitor("store_count")!;
+      const r = await connector.runUserQuery(m.sql, m.params, 100);
+      const value = extractMonitorValue(r.columns, r.rows);
+      expect(value).toBe(3);
+      expect(compareValue(value!, m.operator, m.threshold)).toBe(true);
+    } finally {
+      store.close();
     }
   });
 });
