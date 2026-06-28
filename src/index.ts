@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  loadConnectorConfig,
-  PostgresConnector,
-} from "./connector/postgres.js";
+import { loadConnectorConfig, createConnector } from "./connector/factory.js";
+import type { Connector } from "./connector/types.js";
 import { AuditTrail } from "./audit/trail.js";
 import { createServer } from "./server.js";
 
 // NOTE: stdout is the MCP (JSON-RPC) channel — ALL diagnostics go to stderr.
 async function main(): Promise<void> {
-  const connector = new PostgresConnector(loadConnectorConfig());
+  const cfg = loadConnectorConfig();
+  const connector: Connector = createConnector(cfg);
   const audit = new AuditTrail(
     process.env.AUDIT_DB_PATH ?? "./data/audit.db",
     Number(process.env.AUDIT_RETENTION_DAYS ?? 90),
@@ -17,10 +16,10 @@ async function main(): Promise<void> {
 
   try {
     await connector.healthCheck();
-    console.error("[iomcp] Postgres connection OK");
+    console.error(`[iomcp] ${cfg.dialect} connection OK`);
   } catch (e) {
     console.error(
-      "[iomcp] WARNING: Postgres health check failed:",
+      `[iomcp] WARNING: ${cfg.dialect} health check failed:`,
       e instanceof Error ? e.message : e,
     );
   }
@@ -28,7 +27,7 @@ async function main(): Promise<void> {
   const server = createServer(connector, audit);
   await server.connect(new StdioServerTransport());
   console.error(
-    "[iomcp] intelligence-ops-mcp v0.3 on stdio — tools: list_tables, describe_table, get_schema_context, validate_query, execute_query (render: table/chart); prompt: retail_sql_agent",
+    `[iomcp] intelligence-ops-mcp v0.4 (${cfg.dialect}) on stdio — tools: list_tables, describe_table, get_schema_context, validate_query, execute_query (render: table/chart); prompt: retail_sql_agent`,
   );
 
   const shutdown = async () => {

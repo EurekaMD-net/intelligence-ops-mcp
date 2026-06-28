@@ -1,9 +1,9 @@
 {
   "name": "intelligence-ops-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "MCP server + read-only SQL layer for retail intelligence — runs on the client's own Postgres warehouse. EurekaMS Intelligence Ops; self-hosted alternative to Wilab.",
+  "description": "MCP server + read-only SQL layer for retail intelligence — runs on the client's own Postgres or MySQL warehouse. EurekaMS Intelligence Ops; self-hosted alternative to Wilab.",
   "bin": {
     "intelligence-ops-mcp": "./dist/index.js"
   },
@@ -22,6 +22,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.11.1",
+    "mysql2": "^3.22.5",
     "pg": "^8.22.0",
     "pg-cursor": "^2.21.0",
     "zod": "^4.4.3"

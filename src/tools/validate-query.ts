@@ -1,25 +1,13 @@
 import { z } from "zod";
-import { DatabaseError } from "pg";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { PostgresConnector } from "../connector/postgres.js";
+import type { Connector } from "../connector/types.js";
 import type { AuditTrail } from "../audit/trail.js";
 import { validateSql, MAX_SQL_LENGTH } from "../validator/sql.js";
 import { ok, fail } from "./result.js";
 
-/**
- * A `pg.DatabaseError` means the server evaluated the SQL and rejected it → the query is
- * genuinely INVALID (report `valid:false`). Anything else — `ECONNREFUSED`, `ENOTFOUND`,
- * a pool connect-timeout — is an infra failure and must surface as a TOOL error, not a
- * false "invalid" verdict that makes the host LLM loop repairing good SQL. (Discriminating
- * on a string `code` fails: libuv error codes are also non-empty strings.)
- */
-export function isSqlValidityError(e: unknown): boolean {
-  return e instanceof DatabaseError;
-}
-
 export function registerValidateQuery(
   server: McpServer,
-  connector: PostgresConnector,
+  connector: Connector,
   audit: AuditTrail,
 ): void {
   server.registerTool(
@@ -52,7 +40,7 @@ export function registerValidateQuery(
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         audit.log({ sql: v.sql, params, error: `validate: ${msg}` });
-        if (isSqlValidityError(e)) {
+        if (connector.isValidityError(e)) {
           return ok({ valid: false, reason: msg });
         }
         return fail(msg);
