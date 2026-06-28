@@ -5,10 +5,21 @@ import {
 } from "../src/connector/factory.js";
 import { PostgresConnector } from "../src/connector/postgres.js";
 import { MysqlConnector } from "../src/connector/mysql.js";
-import type { ConnectorConfig } from "../src/connector/types.js";
+import type {
+  AnyConnectorConfig,
+  ConnectorConfig,
+} from "../src/connector/types.js";
 
-describe("loadConnectorConfig", () => {
-  it("PG_* with NO IOMCP_DIALECT → byte-identical v0.3.0 config (zero migration)", () => {
+/** Narrow the union to a relational config (postgres|mysql) for property assertions. */
+function rel(c: AnyConnectorConfig): ConnectorConfig {
+  if (c.dialect !== "postgres" && c.dialect !== "mysql") {
+    throw new Error(`expected a relational config, got ${c.dialect}`);
+  }
+  return c;
+}
+
+describe("loadConnectorConfig — verified dialects", () => {
+  it("PG_* with NO IOMCP_DIALECT → identical v0.3.0 connection config (zero migration)", () => {
     const cfg = loadConnectorConfig({
       PG_HOST: "h",
       PG_PORT: "6000",
@@ -53,23 +64,27 @@ describe("loadConnectorConfig", () => {
   });
 
   it("floors statementTimeout≥1000, poolMax≥1, maxRows≥1 even when env says 0", () => {
-    const cfg = loadConnectorConfig({
-      PG_STATEMENT_TIMEOUT_MS: "0",
-      PG_POOL_MAX: "0",
-      MAX_RESULT_ROWS: "0",
-    });
+    const cfg = rel(
+      loadConnectorConfig({
+        PG_STATEMENT_TIMEOUT_MS: "0",
+        PG_POOL_MAX: "0",
+        MAX_RESULT_ROWS: "0",
+      }),
+    );
     expect(cfg.statementTimeoutMs).toBe(1000);
     expect(cfg.poolMax).toBe(1);
     expect(cfg.maxRows).toBe(1);
   });
 
   it("IOMCP_DIALECT=mysql reads MYSQL_* with port 3306 default", () => {
-    const cfg = loadConnectorConfig({
-      IOMCP_DIALECT: "mysql",
-      MYSQL_HOST: "mh",
-      MYSQL_DATABASE: "shop",
-      MYSQL_USER: "ro",
-    });
+    const cfg = rel(
+      loadConnectorConfig({
+        IOMCP_DIALECT: "mysql",
+        MYSQL_HOST: "mh",
+        MYSQL_DATABASE: "shop",
+        MYSQL_USER: "ro",
+      }),
+    );
     expect(cfg.dialect).toBe("mysql");
     expect(cfg.host).toBe("mh");
     expect(cfg.port).toBe(3306);
@@ -77,8 +92,8 @@ describe("loadConnectorConfig", () => {
     expect(cfg.user).toBe("ro");
   });
 
-  it("throws on an unsupported IOMCP_DIALECT (refuse to build a config we can't serve)", () => {
-    expect(() => loadConnectorConfig({ IOMCP_DIALECT: "snowflake" })).toThrow(
+  it("throws on an unsupported IOMCP_DIALECT", () => {
+    expect(() => loadConnectorConfig({ IOMCP_DIALECT: "oracle" })).toThrow(
       /unsupported IOMCP_DIALECT/,
     );
   });
@@ -96,9 +111,81 @@ describe("loadConnectorConfig", () => {
   });
 });
 
+describe("loadConnectorConfig — experimental dialects are gated", () => {
+  it("bigquery is REFUSED without IOMCP_ENABLE_UNVERIFIED_DIALECTS", () => {
+    expect(() =>
+      loadConnectorConfig({
+        IOMCP_DIALECT: "bigquery",
+        BIGQUERY_PROJECT_ID: "p",
+        BIGQUERY_DATASET: "d",
+      }),
+    ).toThrow(/UNVERIFIED experimental dialect/);
+  });
+
+  it("snowflake is REFUSED without IOMCP_ENABLE_UNVERIFIED_DIALECTS", () => {
+    expect(() => loadConnectorConfig({ IOMCP_DIALECT: "snowflake" })).toThrow(
+      /UNVERIFIED experimental dialect/,
+    );
+  });
+
+  it("with the flag, bigquery parses and requires project + dataset", () => {
+    const cfg = loadConnectorConfig({
+      IOMCP_DIALECT: "bigquery",
+      IOMCP_ENABLE_UNVERIFIED_DIALECTS: "true",
+      BIGQUERY_PROJECT_ID: "proj",
+      BIGQUERY_DATASET: "ds",
+      BIGQUERY_MAX_BYTES_BILLED: "500",
+    });
+    expect(cfg.dialect).toBe("bigquery");
+    if (cfg.dialect === "bigquery") {
+      expect(cfg.projectId).toBe("proj");
+      expect(cfg.defaultDataset).toBe("ds");
+      expect(cfg.maxBytesBilled).toBe("500");
+    }
+    expect(() =>
+      loadConnectorConfig({
+        IOMCP_DIALECT: "bigquery",
+        IOMCP_ENABLE_UNVERIFIED_DIALECTS: "true",
+        BIGQUERY_DATASET: "ds",
+      }),
+    ).toThrow(/BIGQUERY_PROJECT_ID is required/);
+  });
+
+  it("with the flag, snowflake parses and requires account/warehouse/db/schema + auth", () => {
+    const cfg = loadConnectorConfig({
+      IOMCP_DIALECT: "snowflake",
+      IOMCP_ENABLE_UNVERIFIED_DIALECTS: "true",
+      SNOWFLAKE_ACCOUNT: "acct",
+      SNOWFLAKE_USERNAME: "u",
+      SNOWFLAKE_PASSWORD: "pw",
+      SNOWFLAKE_WAREHOUSE: "wh",
+      SNOWFLAKE_DATABASE: "db",
+      SNOWFLAKE_SCHEMA: "sch",
+      SNOWFLAKE_ROLE: "RO_ROLE",
+    });
+    expect(cfg.dialect).toBe("snowflake");
+    if (cfg.dialect === "snowflake") {
+      expect(cfg.account).toBe("acct");
+      expect(cfg.role).toBe("RO_ROLE");
+    }
+    // no password and no key → refused
+    expect(() =>
+      loadConnectorConfig({
+        IOMCP_DIALECT: "snowflake",
+        IOMCP_ENABLE_UNVERIFIED_DIALECTS: "true",
+        SNOWFLAKE_ACCOUNT: "acct",
+        SNOWFLAKE_USERNAME: "u",
+        SNOWFLAKE_WAREHOUSE: "wh",
+        SNOWFLAKE_DATABASE: "db",
+        SNOWFLAKE_SCHEMA: "sch",
+      }),
+    ).toThrow(/SNOWFLAKE_PASSWORD or SNOWFLAKE_PRIVATE_KEY_PATH/);
+  });
+});
+
 describe("createConnector (the structural refusal gate)", () => {
   it("builds a PostgresConnector for dialect postgres", async () => {
-    const c = createConnector(loadConnectorConfig({}));
+    const c = await createConnector(loadConnectorConfig({}));
     expect(c).toBeInstanceOf(PostgresConnector);
     expect(c.dialect).toBe("postgres");
     expect(c.capabilities.paramStyle).toBe("$n");
@@ -106,7 +193,7 @@ describe("createConnector (the structural refusal gate)", () => {
   });
 
   it("builds a MysqlConnector for dialect mysql", async () => {
-    const c = createConnector(
+    const c = await createConnector(
       loadConnectorConfig({
         IOMCP_DIALECT: "mysql",
         MYSQL_DATABASE: "d",
@@ -119,11 +206,32 @@ describe("createConnector (the structural refusal gate)", () => {
     await c.close();
   });
 
-  it("refuses a forged config whose dialect was never built", () => {
+  it("refuses a forged config with a truly unknown dialect (never-default)", async () => {
     const forged = {
       ...loadConnectorConfig({}),
+      dialect: "oracle",
+    } as unknown as AnyConnectorConfig;
+    await expect(createConnector(forged)).rejects.toThrow(
+      /unsupported dialect/,
+    );
+  });
+
+  it("refuses an experimental config when the flag is off (second refusal layer)", async () => {
+    const forged = {
       dialect: "snowflake",
-    } as unknown as ConnectorConfig;
-    expect(() => createConnector(forged)).toThrow(/unsupported dialect/);
+      account: "a",
+      username: "u",
+      password: "p",
+      warehouse: "w",
+      database: "d",
+      schema: "s",
+      connectTimeoutMs: 5000,
+      statementTimeoutMs: 30000,
+      maxRows: 1000,
+    } as unknown as AnyConnectorConfig;
+    // IOMCP_ENABLE_UNVERIFIED_DIALECTS is not set in the test env.
+    await expect(createConnector(forged)).rejects.toThrow(
+      /disabled|UNVERIFIED/,
+    );
   });
 });

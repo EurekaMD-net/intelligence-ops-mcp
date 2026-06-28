@@ -1,9 +1,9 @@
 {
   "name": "intelligence-ops-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "MCP server + read-only SQL layer for retail intelligence — runs on the client's own Postgres or MySQL warehouse. EurekaMS Intelligence Ops; self-hosted alternative to Wilab.",
+  "description": "MCP server + read-only SQL layer for retail intelligence — runs on the client's own Postgres or MySQL warehouse (experimental: BigQuery, Snowflake). EurekaMS Intelligence Ops; self-hosted alternative to Wilab.",
   "bin": {
     "intelligence-ops-mcp": "./dist/index.js"
   },
@@ -35,5 +35,9 @@
     "tsx": "^4.22.0",
     "typescript": "^6.0.0",
     "vitest": "^4.1.0"
+  },
+  "optionalDependencies": {
+    "@google-cloud/bigquery": "^8.3.1",
+    "snowflake-sdk": "^3.0.0"
   }
 }

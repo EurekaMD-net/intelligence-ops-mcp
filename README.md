@@ -7,14 +7,22 @@ self-hosted alternative to Wilab: the client's data never leaves their infrastru
 SQL behind every answer is auditable. The LLM (the "SQL Agent") lives in the EurekaMS host and
 drives this server's tools — the agent asks, this server safely reads.
 
-## Status — Phase 4 (Multi-connector) ✅
+## Status — Phase 4b (Cloud connectors, experimental) ✅
 
-Five MCP tools + a SQL-agent prompt run against the client's **Postgres or MySQL** warehouse,
-selected by `IOMCP_DIALECT`. A `Connector` interface + factory make the dialect a swap-in; tools,
-prompt, and rendering are dialect-agnostic. Read-only is enforced structurally per dialect (see
-below), and `execute_query` returns a markdown table + a heuristic ECharts spec in one pass.
-60 unit tests + two real-DB integration suites (15 against real Postgres, 17 against real MySQL) — **92 tests**.
-**Deferred behind the seam** (cloud-credential-only or queued): BigQuery, Snowflake, MSSQL, ClickHouse.
+Five MCP tools + a SQL-agent prompt run against the client's **Postgres or MySQL** warehouse
+(both VERIFIED, real-DB integration-tested), selected by `IOMCP_DIALECT`. A `Connector` interface
+
+- factory make the dialect a swap-in; tools, prompt, and rendering are dialect-agnostic. Read-only
+  is enforced structurally per dialect (see below), and `execute_query` returns a markdown table + a
+  heuristic ECharts spec in one pass. 73 unit tests + two real-DB integration suites (15 Postgres,
+  17 MySQL) — **105 tests**.
+
+**Experimental (UNVERIFIED):** BigQuery + Snowflake connectors are code-complete but **not
+integration-tested** (cloud-credential-only — no CI-verifiable emulator). They are **disabled
+unless `IOMCP_ENABLE_UNVERIFIED_DIALECTS=true`** and must be verified per
+[`docs/verify-cloud-connectors.md`](docs/verify-cloud-connectors.md) before trusting. **Still
+deferred** (Docker-testable, queued): MSSQL, ClickHouse.
+
 See [`docs/documento-fundacional.md`](docs/documento-fundacional.md) for the full architecture and
 the phase roadmap; the build plan + Wilab-parity matrix live in the EurekaMS workspace
 (`jarvis-kb/projects/eurekaMS/intelligence-ops-mcp/code/plan-phase1.md`).
@@ -126,7 +134,25 @@ keeps working unchanged — same vars, same defaults, zero migration.
 | `AUDIT_RETENTION_DAYS` | `90`              | audit rows older than this are pruned at startup  |
 
 The SQL-agent prompt's placeholder style follows the dialect automatically: `$1, $2` for Postgres,
-`?` for MySQL.
+`?` for MySQL (and `?` for the experimental cloud dialects).
+
+### Experimental cloud dialects (UNVERIFIED) — opt-in
+
+`IOMCP_DIALECT=bigquery` / `snowflake` are **disabled** unless `IOMCP_ENABLE_UNVERIFIED_DIALECTS=true`.
+They have **no integration test** (cloud-credential-only) — read-only is enforced by the cloud
+role/IAM you grant plus a best-effort runtime self-test. **Verify per
+[`docs/verify-cloud-connectors.md`](docs/verify-cloud-connectors.md) before trusting them.**
+
+**BigQuery** (`@google-cloud/bigquery`, optional dep): `BIGQUERY_PROJECT_ID` (req), `BIGQUERY_DATASET`
+(req — default schema), `BIGQUERY_KEY_FILENAME` (SA JSON; omit for ADC), `BIGQUERY_LOCATION`,
+`BIGQUERY_MAX_BYTES_BILLED` (cost cap, bytes; default `1000000000`), `BIGQUERY_STATEMENT_TIMEOUT_MS`.
+Precondition: a service account with `roles/bigquery.dataViewer` + `jobUser` and **no write roles**.
+
+**Snowflake** (`snowflake-sdk`, optional dep): `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USERNAME`,
+`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA` (all req), `SNOWFLAKE_PASSWORD` **or**
+`SNOWFLAKE_PRIVATE_KEY_PATH` (req one), `SNOWFLAKE_ROLE` (a **read-only** role), `SNOWFLAKE_CONNECT_TIMEOUT_MS`,
+`SNOWFLAKE_STATEMENT_TIMEOUT_MS`. Precondition: a role with `SELECT`/`USAGE` grants only (verify across
+the role hierarchy — the self-test sees only direct grants).
 
 ## Run
 

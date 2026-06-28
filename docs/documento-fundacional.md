@@ -184,8 +184,11 @@ execute_query(sql: string, params?: unknown[]): QueryResult
       como defensa); `multipleStatements:false` = single-statement guard; cap de filas+memoria
       por streaming; `EXPLAIN FORMAT=TREE` time-bounded. Integration suite real (17 tests).
 - [x] Backward-compat: deployments solo-`PG_*` sin `IOMCP_DIALECT` siguen idénticos (test).
-- [ ] BigQuery connector (cloud-creds-only; diferido detrás del seam — sin emulador verificable)
-- [ ] Snowflake connector (cloud-creds-only; diferido — RBAC sin contenedor throwaway)
+- [~] **BigQuery connector** (Phase 4b) — code-complete (`@google-cloud/bigquery`), **EXPERIMENTAL/
+  UNVERIFIED** (cloud-creds-only, sin emulador CI). Gated tras `IOMCP_ENABLE_UNVERIFIED_DIALECTS`;
+  read-only = IAM dataViewer + self-test best-effort + `maximumBytesBilled`. Runbook: `docs/verify-cloud-connectors.md`.
+- [~] **Snowflake connector** (Phase 4b) — code-complete (`snowflake-sdk`), **EXPERIMENTAL/UNVERIFIED**.
+  Gated; read-only = rol SELECT/USAGE + self-test `SHOW GRANTS` (solo grants directos) + `MULTI_STATEMENT_COUNT=1`.
 - [ ] MSSQL / ClickHouse (Docker-testables; en cola detrás del seam)
 
 ---
@@ -211,15 +214,16 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 
 ## Estado actual
 
-| Item                                   | Estado                                                                                                                              |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Decisión arquitectural                 | ✅ Tomada — 2026-06-26                                                                                                              |
-| Repositorio                            | ✅ Creado — `EurekaMD-net/intelligence-ops-mcp`                                                                                     |
-| Phase 1 — MCP Core (Postgres)          | ✅ Completado — 2026-06-27 (3 tools, read-only estructural, audit trail; 36 tests)                                                  |
-| Phase 2 — Schema Discovery + SQL Agent | ✅ Completado — 2026-06-27 (`get_schema_context` + `validate_query` + `retail_sql_agent` prompt; LLM host-side; 42 tests)           |
-| Phase 3 — Result Renderer              | ✅ Completado — 2026-06-27 (markdown + heurística ECharts deterministas en `execute_query` `render`; narrativa host-side; 58 tests) |
-| Phase 4 — Multi-connector              | ✅ Completado — 2026-06-28 (`Connector` interface + factory refusal-gate + MySQL connector real; 92 tests; v0.4.0)                  |
-| Cloud connectors (BigQuery/Snowflake)  | 🔲 Diferidos detrás del seam (cloud-creds-only; sin verificación CI)                                                                |
+| Item                                   | Estado                                                                                                                                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decisión arquitectural                 | ✅ Tomada — 2026-06-26                                                                                                                                                                    |
+| Repositorio                            | ✅ Creado — `EurekaMD-net/intelligence-ops-mcp`                                                                                                                                           |
+| Phase 1 — MCP Core (Postgres)          | ✅ Completado — 2026-06-27 (3 tools, read-only estructural, audit trail; 36 tests)                                                                                                        |
+| Phase 2 — Schema Discovery + SQL Agent | ✅ Completado — 2026-06-27 (`get_schema_context` + `validate_query` + `retail_sql_agent` prompt; LLM host-side; 42 tests)                                                                 |
+| Phase 3 — Result Renderer              | ✅ Completado — 2026-06-27 (markdown + heurística ECharts deterministas en `execute_query` `render`; narrativa host-side; 58 tests)                                                       |
+| Phase 4 — Multi-connector              | ✅ Completado — 2026-06-28 (`Connector` interface + factory refusal-gate + MySQL connector real; 92 tests; v0.4.0)                                                                        |
+| Phase 4b — Cloud connectors            | 🧪 EXPERIMENTAL/UNVERIFIED — 2026-06-28 (BigQuery + Snowflake code-complete, gated tras `IOMCP_ENABLE_UNVERIFIED_DIALECTS`; 105 tests; v0.5.0). Runbook `docs/verify-cloud-connectors.md` |
+| MSSQL / ClickHouse                     | 🔲 Diferidos (Docker-testables; en cola detrás del seam)                                                                                                                                  |
 
 ---
 
