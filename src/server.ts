@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { PostgresConnector } from "./connector/postgres.js";
+import type { Connector } from "./connector/types.js";
 import type { AuditTrail } from "./audit/trail.js";
 import { registerListTables } from "./tools/list-tables.js";
 import { registerDescribeTable } from "./tools/describe-table.js";
@@ -10,15 +10,16 @@ import { registerRetailSqlAgentPrompt } from "./prompts/retail-sql-agent.js";
 
 /**
  * Build the MCP server: 5 tools (Phase 1 core + Phase 2 schema-discovery/validate) and
- * the retail SQL-agent prompt. The LLM inference lives in the host, not here.
+ * the retail SQL-agent prompt, over any dialect's Connector. The LLM inference lives in
+ * the host, not here.
  */
 export function createServer(
-  connector: PostgresConnector,
+  connector: Connector,
   audit: AuditTrail,
 ): McpServer {
   const server = new McpServer({
     name: "intelligence-ops-mcp",
-    version: "0.3.0",
+    version: "0.4.0",
   });
   // Phase 1 — core
   registerListTables(server, connector);
@@ -27,6 +28,7 @@ export function createServer(
   // Phase 2 — schema discovery + SQL-agent scaffolding
   registerGetSchemaContext(server, connector);
   registerValidateQuery(server, connector, audit);
-  registerRetailSqlAgentPrompt(server);
+  // The prompt's placeholder style follows the live dialect ($1,$2 vs ?).
+  registerRetailSqlAgentPrompt(server, connector.capabilities.paramStyle);
   return server;
 }

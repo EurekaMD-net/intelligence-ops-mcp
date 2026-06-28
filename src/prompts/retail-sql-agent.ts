@@ -1,12 +1,17 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Capabilities } from "../connector/types.js";
 
 /**
  * The SQL Agent itself runs in the EurekaMS host LLM, NOT in this server (the server
  * never does inference). This prompt is the scaffold the host fetches: it wires the
- * host LLM to use THIS server's tools as a read-only retail analyst.
+ * host LLM to use THIS server's tools as a read-only retail analyst. The placeholder
+ * style is dialect-specific, so the generated SQL binds correctly on the live engine.
  */
-export function registerRetailSqlAgentPrompt(server: McpServer): void {
+export function registerRetailSqlAgentPrompt(
+  server: McpServer,
+  paramStyle: Capabilities["paramStyle"],
+): void {
   server.registerPrompt(
     "retail_sql_agent",
     {
@@ -23,14 +28,27 @@ export function registerRetailSqlAgentPrompt(server: McpServer): void {
       messages: [
         {
           role: "user",
-          content: { type: "text" as const, text: buildPrompt(question) },
+          content: {
+            type: "text" as const,
+            text: buildPrompt(question, paramStyle),
+          },
         },
       ],
     }),
   );
 }
 
-export function buildPrompt(question: string): string {
+export function buildPrompt(
+  question: string,
+  paramStyle: Capabilities["paramStyle"],
+): string {
+  const isPg = paramStyle === "$n";
+  // Dialect-specific bits so the generated SQL is valid on the live engine.
+  const phList = isPg ? "$1, $2, … params" : "? positional params (in order)";
+  const ph1 = isPg ? "$1" : "?";
+  const last30 = isPg
+    ? "v.vendido_en >= now() - interval '30 days'"
+    : "v.vendido_en >= NOW() - INTERVAL 30 DAY";
   return `You are a retail data analyst answering a business question against the client's
 own database, using ONLY the tools this MCP server exposes. The database is READ-ONLY;
 you cannot and must not attempt to modify data.
@@ -38,7 +56,7 @@ you cannot and must not attempt to modify data.
 Loop:
 1. get_schema_context — learn the tables, columns, and foreign-key relationships. Call
    this first (it returns the whole schema in one shot). Use describe_table to zoom in.
-2. Write ONE SELECT (or WITH … SELECT). Use $1, $2, … params for any literal values —
+2. Write ONE SELECT (or WITH … SELECT). Use ${phList} for any literal values —
    never string-concatenate user input. Join using the foreign-key graph.
 3. validate_query — confirm the SQL is valid and inspect the plan BEFORE running it.
 4. execute_query — run it. Pass \`render:["table","chart"]\` to get a markdown table and a
@@ -56,11 +74,11 @@ Few-shot (a demo retail schema: sucursales, productos, inventario, ventas):
   SELECT s.nombre, i.stock FROM inventario i
   JOIN sucursales s ON s.id = i.sucursal_id
   JOIN productos p ON p.id = i.producto_id
-  WHERE p.sku = $1 ORDER BY i.stock;   -- params: ['CH-001']
+  WHERE p.sku = ${ph1} ORDER BY i.stock;   -- params: ['CH-001']
 - "tienda con mayor throughput últimos 30 días" →
   SELECT s.nombre, SUM(v.cantidad) AS u FROM ventas v
   JOIN sucursales s ON s.id = v.sucursal_id
-  WHERE v.vendido_en >= now() - interval '30 days'
+  WHERE ${last30}
   GROUP BY s.nombre ORDER BY u DESC LIMIT 1;
 
 Business question:

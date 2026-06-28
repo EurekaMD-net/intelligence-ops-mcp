@@ -15,6 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 function configFromUrl(raw: string): ConnectorConfig {
   const u = new URL(raw);
   return {
+    dialect: "postgres",
     host: u.hostname,
     port: Number(u.port || 5432),
     database: u.pathname.replace(/^\//, "") || "postgres",

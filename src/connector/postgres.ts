@@ -1,7 +1,10 @@
 import pg from "pg";
 import Cursor from "pg-cursor";
 import type {
+  Connector,
+  Capabilities,
   ConnectorConfig,
+  Dialect,
   TableInfo,
   TableSchema,
   ColumnInfo,
@@ -13,14 +16,6 @@ import type {
 } from "./types.js";
 
 const { Pool } = pg;
-
-function num(v: string | undefined, d: number): number {
-  // An empty/whitespace env var must fall back to the default, NOT coerce to 0
-  // (Number("") === 0 would silently disable statement_timeout / break the pool).
-  if (v === undefined || v.trim() === "") return d;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : d;
-}
 
 /** Read up to `n` rows from a server-side cursor, returning rows + field names. */
 function readCursor(
@@ -38,26 +33,10 @@ function readCursor(
   });
 }
 
-export function loadConnectorConfig(
-  env: NodeJS.ProcessEnv = process.env,
-): ConnectorConfig {
-  return {
-    host: env.PG_HOST ?? "localhost",
-    port: num(env.PG_PORT, 5432),
-    database: env.PG_DATABASE ?? "postgres",
-    user: env.PG_USER ?? "postgres",
-    password: env.PG_PASSWORD ?? "",
-    ssl: env.PG_SSL === "true",
-    poolMax: Math.max(1, Math.floor(num(env.PG_POOL_MAX, 5))),
-    connectTimeoutMs: Math.max(1, num(env.PG_CONNECT_TIMEOUT_MS, 5000)),
-    // Floored at 1s so an empty/zero env can never DISABLE the per-query timeout.
-    statementTimeoutMs: Math.max(1000, num(env.PG_STATEMENT_TIMEOUT_MS, 30000)),
-    maxRows: Math.max(1, Math.floor(num(env.MAX_RESULT_ROWS, 1000))),
-  };
-}
-
-/** Read-only Postgres access for the 3 MCP tools. */
-export class PostgresConnector {
+/** Read-only Postgres access behind the dialect-agnostic Connector seam. */
+export class PostgresConnector implements Connector {
+  readonly dialect: Dialect = "postgres";
+  readonly capabilities: Capabilities = { paramStyle: "$n" };
   private readonly pool: pg.Pool;
 
   constructor(private readonly cfg: ConnectorConfig) {
@@ -340,6 +319,17 @@ export class PostgresConnector {
       await client.query("ROLLBACK").catch(() => {});
       client.release();
     }
+  }
+
+  /**
+   * A `pg.DatabaseError` means the server evaluated the SQL and rejected it → the
+   * query is genuinely INVALID. Anything else — ECONNREFUSED, ENOTFOUND, a pool
+   * connect-timeout — is infra and must surface as a TOOL error, not a false
+   * "invalid" verdict that makes the host LLM loop repairing good SQL. (A string
+   * `code` check can't discriminate: libuv codes are also non-empty strings.)
+   */
+  isValidityError(e: unknown): boolean {
+    return e instanceof pg.DatabaseError;
   }
 
   async close(): Promise<void> {

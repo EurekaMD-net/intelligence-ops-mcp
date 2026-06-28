@@ -113,7 +113,7 @@ La respuesta llega en menos de 60 segundos desde la base de datos del cliente �
 
 - **Runtime:** Node.js + TypeScript (ESM)
 - **Protocolo:** `@modelcontextprotocol/sdk` — expone 3 herramientas MCP: `list_tables`, `describe_table`, `execute_query`
-- **Connectors:** `pg` (Postgres) en Phase 1; `mysql2`, `@google-cloud/bigquery` en fases posteriores
+- **Connectors:** `pg` (Postgres) + `mysql2` (MySQL) detrás de una interfaz `Connector` (Phase 4); `@google-cloud/bigquery`, Snowflake diferidos
 - **SQL Validation:** whitelist de verbos (SELECT, WITH, EXPLAIN); bloqueo de DDL/DML
 - **Result Rendering:** ECharts JSON spec generado por el LLM, renderizado en el frontend
 - **Audit Trail:** SQLite local o Supabase (configurable por deployment)
@@ -173,12 +173,20 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 
 **Criterio de done:** la demo del landing usa gráficas reales generadas por el agente, no mocks.
 
-### Phase 4 — Multi-connector `[after P3]`
+### Phase 4 — Multi-connector `[done]`
 
-- [ ] MySQL / MariaDB connector
-- [ ] BigQuery connector (Google Cloud SA auth)
-- [ ] Snowflake connector (JWT auth)
-- [ ] Connection testing endpoint: valida credenciales sin ejecutar queries
+- [x] **`Connector` interface + `createConnector` factory** — el dialecto es un swap-in;
+      tools, prompt y rendering son dialect-agnósticos. La factory es el _structural refusal
+      gate_: union `Dialect` cerrada (default `never` en compile-time) + throw en runtime +
+      throw en `loadConnectorConfig` ⇒ no hay camino de un env string a un connector no probado.
+- [x] **MySQL connector** (8.0.16+ / InnoDB, `mysql2`) — read-only estructural (grant SELECT
+      sin `FILE`, self-test que rechaza si el user tiene FILE/ALL; `START TRANSACTION READ ONLY`
+      como defensa); `multipleStatements:false` = single-statement guard; cap de filas+memoria
+      por streaming; `EXPLAIN FORMAT=TREE` time-bounded. Integration suite real (17 tests).
+- [x] Backward-compat: deployments solo-`PG_*` sin `IOMCP_DIALECT` siguen idénticos (test).
+- [ ] BigQuery connector (cloud-creds-only; diferido detrás del seam — sin emulador verificable)
+- [ ] Snowflake connector (cloud-creds-only; diferido — RBAC sin contenedor throwaway)
+- [ ] MSSQL / ClickHouse (Docker-testables; en cola detrás del seam)
 
 ---
 
@@ -210,7 +218,8 @@ execute_query(sql: string, params?: unknown[]): QueryResult
 | Phase 1 — MCP Core (Postgres)          | ✅ Completado — 2026-06-27 (3 tools, read-only estructural, audit trail; 36 tests)                                                  |
 | Phase 2 — Schema Discovery + SQL Agent | ✅ Completado — 2026-06-27 (`get_schema_context` + `validate_query` + `retail_sql_agent` prompt; LLM host-side; 42 tests)           |
 | Phase 3 — Result Renderer              | ✅ Completado — 2026-06-27 (markdown + heurística ECharts deterministas en `execute_query` `render`; narrativa host-side; 58 tests) |
-| Phase 4                                | 🔲 Pendiente                                                                                                                        |
+| Phase 4 — Multi-connector              | ✅ Completado — 2026-06-28 (`Connector` interface + factory refusal-gate + MySQL connector real; 92 tests; v0.4.0)                  |
+| Cloud connectors (BigQuery/Snowflake)  | 🔲 Diferidos detrás del seam (cloud-creds-only; sin verificación CI)                                                                |
 
 ---
 

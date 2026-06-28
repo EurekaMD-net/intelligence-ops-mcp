@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { PostgresConnector } from "../connector/postgres.js";
+import type { Connector } from "../connector/types.js";
 import type { AuditTrail } from "../audit/trail.js";
 import { validateSql, MAX_SQL_LENGTH } from "../validator/sql.js";
 import { toMarkdownTable } from "../render/markdown.js";
@@ -9,7 +9,7 @@ import { ok, fail } from "./result.js";
 
 export function registerExecuteQuery(
   server: McpServer,
-  connector: PostgresConnector,
+  connector: Connector,
   audit: AuditTrail,
 ): void {
   server.registerTool(
