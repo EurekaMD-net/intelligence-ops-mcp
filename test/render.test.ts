@@ -93,6 +93,39 @@ describe("inferEChartsSpec", () => {
     expect(spec.series[0]!.type).toBe("line"); // "year" is date-like
   });
 
+  it("charts the most significant measure, not the last column (revenue over avg ticket)", () => {
+    const r = inferEChartsSpec(
+      ["zona", "num_ventas", "ventas_totales", "ticket_promedio"],
+      [
+        {
+          zona: "CDMX",
+          num_ventas: 394503,
+          ventas_totales: 165742596,
+          ticket_promedio: 420.13,
+        },
+        {
+          zona: "Puebla",
+          num_ventas: 151680,
+          ventas_totales: 63636714,
+          ticket_promedio: 419.35,
+        },
+        {
+          zona: "Bajío",
+          num_ventas: 119905,
+          ventas_totales: 50600000,
+          ticket_promedio: 422,
+        },
+      ],
+    );
+    const spec = r.spec as {
+      yAxis: { name: string };
+      series: { name: string; data: number[] }[];
+    };
+    expect(spec.yAxis.name).toBe("ventas_totales"); // not ticket_promedio (last col)
+    expect(spec.series[0]!.name).toBe("ventas_totales");
+    expect(spec.series[0]!.data).toEqual([165742596, 63636714, 50600000]);
+  });
+
   it("maps null values to null (a gap), not 0, in the chart series", () => {
     const r = inferEChartsSpec(
       ["nombre", "total"],
