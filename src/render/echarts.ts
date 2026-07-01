@@ -103,34 +103,57 @@ export function inferEChartsSpec(
     };
   }
 
-  const numericCols = columns.filter((c) => isNumericColumn(c, rows));
+  // Ignore all-null / empty columns (e.g. a CASE sort-helper that never matched because
+  // of a value-case mismatch): they carry no information and would otherwise pollute the
+  // axis label ("sábado · ") or the measure choice.
+  const hasValues = (col: string) =>
+    rows.some((r) => r[col] !== null && r[col] !== undefined && r[col] !== "");
+  const usable = columns.filter(hasValues);
+  if (usable.length < 2) {
+    return {
+      spec: null,
+      reason: "need a category column and a numeric column",
+    };
+  }
 
-  // Category FIRST — a non-numeric dimension if there is one, else the leading column
-  // (e.g. a year/month int that is the dimension, not the measure).
-  const categoryCol =
-    columns.find((c) => !numericCols.includes(c)) ?? columns[0];
-  if (!categoryCol) return { spec: null, reason: "only one usable column" };
-
-  // Value = the most *significant* measure among the numeric columns, not just the
-  // last one — a query like `SELECT zona, num_ventas, ventas_totales, ticket_promedio`
-  // must chart revenue (165M/63M/50M), not the near-flat average ticket (420/419/422)
-  // that happens to be selected last.
-  const valueCol = mostSignificantColumn(
-    numericCols.filter((c) => c !== categoryCol),
-    rows,
+  // Split columns into dimensions (grouping keys) and measures (what we plot). A
+  // dimension is any non-numeric column, or a numeric one whose name is temporal/ordinal
+  // (hora, año, mes, dia_semana…) — those are grouping keys, not measures.
+  let dimensions = usable.filter(
+    (c) => !isNumericColumn(c, rows) || looksLikeDate(c, rows),
   );
+  // No obvious dimension (every column is a plain measure) → let the first column label
+  // the axis, as before.
+  if (dimensions.length === 0) dimensions = [usable[0]!];
+  const measures = usable.filter((c) => !dimensions.includes(c));
+
+  // Value = the most *significant* measure, not just the last numeric column — a query
+  // like `SELECT zona, num_ventas, ventas_totales, ticket_promedio` must chart revenue
+  // (165M/63M/50M), not the near-flat average ticket (420/419/422) selected last.
+  const valueCol = mostSignificantColumn(measures, rows);
   if (!valueCol) return { spec: null, reason: "no numeric column to plot" };
 
-  const categories = rows.map((r) => String(r[categoryCol] ?? ""));
+  // When a result is grouped by more than one dimension (día × hora), a single-axis chart
+  // would drop a dimension and leave duplicate, ambiguous labels ("sábado" ×N). Keep every
+  // dimension by composing the axis label ("sábado · 14") so each point is distinct.
+  const categoryName = dimensions.join(" · ");
+  const categories = rows.map((r) =>
+    dimensions.map((d) => String(r[d] ?? "")).join(" · "),
+  );
   const values = rows.map((r) => {
     const v = r[valueCol];
     return v === null || v === undefined ? null : Number(v);
   });
-  const type = looksLikeDate(categoryCol, rows) ? "line" : "bar";
+  // One date dimension is a time series (line); a single categorical dimension or a
+  // multi-dimension composite is discrete (bar).
+  const type =
+    dimensions.length === 1 && looksLikeDate(dimensions[0]!, rows)
+      ? "line"
+      : "bar";
 
   return {
     spec: {
-      xAxis: { type: "category", name: categoryCol, data: categories },
+      xAxis: { type: "category", name: categoryName, data: categories },
       yAxis: { type: "value", name: valueCol },
       series: [{ type, name: valueCol, data: values }],
       tooltip: { trigger: "axis" },

@@ -126,6 +126,64 @@ describe("inferEChartsSpec", () => {
     expect(spec.series[0]!.data).toEqual([165742596, 63636714, 50600000]);
   });
 
+  it("composes a label from every dimension (día × hora), not just the first", () => {
+    const r = inferEChartsSpec(
+      ["dia_semana", "hora", "num_ventas", "total_ventas"],
+      [
+        {
+          dia_semana: "sábado",
+          hora: 14,
+          num_ventas: 900,
+          total_ventas: 7558971,
+        },
+        {
+          dia_semana: "sábado",
+          hora: 20,
+          num_ventas: 850,
+          total_ventas: 7316928,
+        },
+        {
+          dia_semana: "domingo",
+          hora: 18,
+          num_ventas: 800,
+          total_ventas: 7286357,
+        },
+      ],
+    );
+    const spec = r.spec as {
+      xAxis: { name: string; data: string[] };
+      series: { type: string; name: string; data: number[] }[];
+    };
+    // hora is a dimension (temporal name), not dropped; labels stay distinct.
+    expect(spec.xAxis.name).toBe("dia_semana · hora");
+    expect(spec.xAxis.data).toEqual([
+      "sábado · 14",
+      "sábado · 20",
+      "domingo · 18",
+    ]);
+    expect(spec.series[0]!.name).toBe("total_ventas"); // most significant measure
+    expect(spec.series[0]!.type).toBe("bar"); // multi-dimension → discrete bars
+  });
+
+  it("ignores an all-null helper column (CASE sort key) — not a dimension", () => {
+    const r = inferEChartsSpec(
+      ["dia_semana", "total_ventas", "orden"],
+      [
+        { dia_semana: "lunes", total_ventas: 34891084, orden: null },
+        { dia_semana: "martes", total_ventas: 35288078, orden: null },
+        { dia_semana: "sábado", total_ventas: 48695901, orden: null },
+      ],
+    );
+    const spec = r.spec as {
+      xAxis: { name: string; data: string[] };
+      series: { name: string }[];
+    };
+    // orden is all-null → dropped, so the axis stays the bare weekday (no "lunes · ").
+    expect(spec.xAxis.name).toBe("dia_semana");
+    expect(spec.xAxis.data).toEqual(["lunes", "martes", "sábado"]);
+    expect(spec.series[0]!.name).toBe("total_ventas");
+  });
+
   it("maps null values to null (a gap), not 0, in the chart series", () => {
     const r = inferEChartsSpec(
       ["nombre", "total"],
