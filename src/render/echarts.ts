@@ -63,6 +63,34 @@ function looksLikeDate(col: string, rows: Record<string, unknown>[]): boolean {
   );
 }
 
+/**
+ * Of several numeric measures, the one worth charting is the most significant one:
+ * the column with the greatest total magnitude. Sums and counts (revenue, units — the
+ * headline figures) dwarf derived per-row metrics (average ticket, margin %), so this
+ * surfaces the measure a reader cares about at a glance and lets the chart emphasize its
+ * extremes, instead of a near-constant secondary column. Ties keep the last column
+ * (measures usually follow their dimensions in a SELECT).
+ */
+function mostSignificantColumn(
+  cols: string[],
+  rows: Record<string, unknown>[],
+): string | undefined {
+  let best: string | undefined;
+  let bestMagnitude = -1;
+  for (const c of cols) {
+    let magnitude = 0;
+    for (const r of rows) {
+      const n = Number(r[c]);
+      if (Number.isFinite(n)) magnitude += Math.abs(n);
+    }
+    if (magnitude >= bestMagnitude) {
+      bestMagnitude = magnitude;
+      best = c;
+    }
+  }
+  return best;
+}
+
 export function inferEChartsSpec(
   columns: string[],
   rows: Record<string, unknown>[],
@@ -83,9 +111,14 @@ export function inferEChartsSpec(
     columns.find((c) => !numericCols.includes(c)) ?? columns[0];
   if (!categoryCol) return { spec: null, reason: "only one usable column" };
 
-  // Value = the LAST numeric column that isn't the category (measures are typically
-  // selected after their dimensions, e.g. `SELECT year, SUM(sales)`).
-  const valueCol = numericCols.filter((c) => c !== categoryCol).at(-1);
+  // Value = the most *significant* measure among the numeric columns, not just the
+  // last one — a query like `SELECT zona, num_ventas, ventas_totales, ticket_promedio`
+  // must chart revenue (165M/63M/50M), not the near-flat average ticket (420/419/422)
+  // that happens to be selected last.
+  const valueCol = mostSignificantColumn(
+    numericCols.filter((c) => c !== categoryCol),
+    rows,
+  );
   if (!valueCol) return { spec: null, reason: "no numeric column to plot" };
 
   const categories = rows.map((r) => String(r[categoryCol] ?? ""));
