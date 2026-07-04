@@ -40,6 +40,7 @@ describe("loadConnectorConfig — verified dialects", () => {
       user: "u",
       password: "p",
       ssl: true,
+      sslInsecure: false,
       poolMax: 9,
       connectTimeoutMs: 1234,
       statementTimeoutMs: 4567,
@@ -56,6 +57,7 @@ describe("loadConnectorConfig — verified dialects", () => {
       user: "postgres",
       password: "",
       ssl: false,
+      sslInsecure: false,
       poolMax: 5,
       connectTimeoutMs: 5000,
       statementTimeoutMs: 30000,
@@ -74,6 +76,16 @@ describe("loadConnectorConfig — verified dialects", () => {
     expect(cfg.statementTimeoutMs).toBe(1000);
     expect(cfg.poolMax).toBe(1);
     expect(cfg.maxRows).toBe(1);
+  });
+
+  it("TLS cert verification is on by default; PG_SSL_INSECURE=true opts out", () => {
+    expect(rel(loadConnectorConfig({ PG_SSL: "true" })).sslInsecure).toBe(
+      false,
+    );
+    expect(
+      rel(loadConnectorConfig({ PG_SSL: "true", PG_SSL_INSECURE: "true" }))
+        .sslInsecure,
+    ).toBe(true);
   });
 
   it("IOMCP_DIALECT=mysql reads MYSQL_* with port 3306 default", () => {

@@ -51,4 +51,16 @@ describe("AuditTrail", () => {
       .get() as { c: number };
     expect(remaining.c).toBe(1);
   });
+
+  it("clamps a NaN retention (bad env) to the 90-day default so pruning still runs", () => {
+    // Number(process.env.AUDIT_RETENTION_DAYS) is NaN for a non-numeric env; an unclamped
+    // NaN makes datetime('now','-NaN days') NULL and prunes nothing (unbounded growth).
+    trail = new AuditTrail(":memory:", Number("not-a-number"));
+    trail.db
+      .prepare(
+        "INSERT INTO query_log (ts, sql_text) VALUES (datetime('now','-200 days'), 'old')",
+      )
+      .run();
+    expect(trail.pruneOld()).toBe(1);
+  });
 });

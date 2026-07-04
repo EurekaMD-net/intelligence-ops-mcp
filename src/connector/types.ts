@@ -32,6 +32,8 @@ export interface ConnectorConfig {
   user: string;
   password: string;
   ssl: boolean;
+  /** When ssl is on, skip TLS cert verification (self-signed dev only — MITM-exposed). */
+  sslInsecure: boolean;
   poolMax: number;
   connectTimeoutMs: number;
   statementTimeoutMs: number;

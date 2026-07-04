@@ -46,7 +46,8 @@ export class PostgresConnector implements Connector {
       database: cfg.database,
       user: cfg.user,
       password: cfg.password,
-      ssl: cfg.ssl ? { rejectUnauthorized: false } : undefined,
+      // Verify the server cert by default; sslInsecure opts out for self-signed dev only.
+      ssl: cfg.ssl ? { rejectUnauthorized: !cfg.sslInsecure } : undefined,
       max: cfg.poolMax,
       connectionTimeoutMillis: cfg.connectTimeoutMs,
     });
@@ -191,7 +192,7 @@ export class PostgresConnector implements Connector {
     try {
       await client.query("BEGIN TRANSACTION READ ONLY");
       await client.query(
-        `SET LOCAL statement_timeout = ${this.cfg.statementTimeoutMs}`,
+        `SET LOCAL statement_timeout = ${Math.floor(this.cfg.statementTimeoutMs)}`,
       );
       // A server-side cursor caps BOTH rows and memory regardless of the SQL text:
       // a trailing comment can't strip an appended LIMIT (there is none), and pg never
@@ -320,7 +321,7 @@ export class PostgresConnector implements Connector {
     try {
       await client.query("BEGIN TRANSACTION READ ONLY");
       await client.query(
-        `SET LOCAL statement_timeout = ${this.cfg.statementTimeoutMs}`,
+        `SET LOCAL statement_timeout = ${Math.floor(this.cfg.statementTimeoutMs)}`,
       );
       cursor = client.query(new Cursor(`EXPLAIN ${sql}`, params));
       const { rows } = await readCursor(cursor, 10_000); // plan rows are few

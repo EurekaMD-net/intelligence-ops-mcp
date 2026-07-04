@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS query_log (
   exec_ms    INTEGER,
   error      TEXT,
   client_id  TEXT
-);`;
+);
+CREATE INDEX IF NOT EXISTS idx_query_log_ts ON query_log(ts);`;
 
 export interface AuditEntry {
   sql: string;
@@ -26,11 +27,15 @@ export interface AuditEntry {
 /** Local SQLite audit trail — one row per query attempt (success or rejection). */
 export class AuditTrail {
   readonly db: Database.Database;
+  private readonly retentionDays: number;
 
-  constructor(
-    path: string,
-    private readonly retentionDays = 90,
-  ) {
+  constructor(path: string, retentionDays = 90) {
+    // A non-numeric AUDIT_RETENTION_DAYS yields NaN → datetime('now','-NaN days') is NULL,
+    // so nothing is ever pruned and query_log grows unbounded. Clamp to a positive integer.
+    this.retentionDays =
+      Number.isFinite(retentionDays) && retentionDays > 0
+        ? Math.floor(retentionDays)
+        : 90;
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     this.db = new Database(path);
     this.db.pragma("journal_mode = WAL");
