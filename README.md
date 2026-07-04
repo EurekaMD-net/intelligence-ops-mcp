@@ -119,14 +119,15 @@ keeps working unchanged — same vars, same defaults, zero migration.
 
 **Postgres** (`IOMCP_DIALECT` unset or `postgres`):
 
-| Var                                   | Default                           | Purpose                         |
-| ------------------------------------- | --------------------------------- | ------------------------------- |
-| `PG_HOST` / `PG_PORT` / `PG_DATABASE` | `localhost` / `5432` / `postgres` | client warehouse                |
-| `PG_USER` / `PG_PASSWORD`             | `postgres` / —                    | **must be read-only**           |
-| `PG_SSL`                              | `false`                           | `true` for external connections |
-| `PG_POOL_MAX`                         | `5`                               | connection pool size            |
-| `PG_CONNECT_TIMEOUT_MS`               | `5000`                            | connect timeout                 |
-| `PG_STATEMENT_TIMEOUT_MS`             | `30000`                           | per-query timeout               |
+| Var                                   | Default                           | Purpose                                                |
+| ------------------------------------- | --------------------------------- | ------------------------------------------------------ |
+| `PG_HOST` / `PG_PORT` / `PG_DATABASE` | `localhost` / `5432` / `postgres` | client warehouse                                       |
+| `PG_USER` / `PG_PASSWORD`             | `postgres` / —                    | **must be read-only**                                  |
+| `PG_SSL`                              | `false`                           | `true` for external connections (server cert verified) |
+| `PG_SSL_INSECURE`                     | `false`                           | skip TLS cert verification — self-signed dev only      |
+| `PG_POOL_MAX`                         | `5`                               | connection pool size                                   |
+| `PG_CONNECT_TIMEOUT_MS`               | `5000`                            | connect timeout                                        |
+| `PG_STATEMENT_TIMEOUT_MS`             | `30000`                           | per-query timeout                                      |
 
 **MySQL** (`IOMCP_DIALECT=mysql`):
 
@@ -135,7 +136,8 @@ keeps working unchanged — same vars, same defaults, zero migration.
 | `MYSQL_HOST` / `MYSQL_PORT`     | `localhost` / `3306`  | client warehouse                                          |
 | `MYSQL_DATABASE`                | — (**required**)      | also the default schema (no `"public"` in MySQL)          |
 | `MYSQL_USER` / `MYSQL_PASSWORD` | — (**required user**) | **SELECT-only, no `FILE`** (refused at startup otherwise) |
-| `MYSQL_SSL`                     | `false`               | `true` for external connections                           |
+| `MYSQL_SSL`                     | `false`               | `true` for external connections (server cert verified)    |
+| `MYSQL_SSL_INSECURE`            | `false`               | skip TLS cert verification — self-signed dev only         |
 | `MYSQL_POOL_MAX`                | `5`                   | connection pool size                                      |
 | `MYSQL_CONNECT_TIMEOUT_MS`      | `5000`                | connect timeout                                           |
 | `MYSQL_STATEMENT_TIMEOUT_MS`    | `30000`               | per-query timeout (`max_execution_time`)                  |
