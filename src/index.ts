@@ -53,6 +53,17 @@ async function main(): Promise<void> {
   process.on("SIGTERM", shutdown);
 }
 
+// This is a long-lived stdio child: a stray post-boot rejection (an un-awaited promise the MCP
+// SDK doesn't wrap, an idle-connection error on a path without its own handler) must be observable
+// on stderr and survivable, not a silent crash with a raw Node trace. The pool's own 'error'
+// listener handles the common pg idle-drop; this is the catch-all backstop for everything else.
+process.on("unhandledRejection", (e: unknown) => {
+  console.error(
+    "[iomcp] unhandledRejection:",
+    e instanceof Error ? (e.stack ?? e.message) : e,
+  );
+});
+
 main().catch((e) => {
   console.error("[iomcp] fatal:", e);
   process.exit(1);
