@@ -50,6 +50,17 @@ export class PostgresConnector implements Connector {
       max: cfg.poolMax,
       connectionTimeoutMillis: cfg.connectTimeoutMs,
     });
+    // node-pg emits 'error' on the Pool when an IDLE backend connection drops (e.g. the database
+    // is restarted underneath us — routine for the self-hosted Supabase Docker stack). With no
+    // listener, that event is re-thrown as an uncaughtException and kills this long-lived stdio
+    // child, taking every tool down until the host respawns it. Log to stderr and let the pool
+    // recycle the dead connection on the next checkout — an idle drop is recoverable, not fatal.
+    this.pool.on("error", (e: unknown) => {
+      console.error(
+        "[iomcp] idle pg client error:",
+        e instanceof Error ? e.message : e,
+      );
+    });
   }
 
   async healthCheck(): Promise<boolean> {
