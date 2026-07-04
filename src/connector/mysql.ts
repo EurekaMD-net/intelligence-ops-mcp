@@ -100,7 +100,8 @@ export class MysqlConnector implements Connector {
       user: cfg.user,
       password: cfg.password,
       database: cfg.database || undefined,
-      ssl: cfg.ssl ? { rejectUnauthorized: false } : undefined,
+      // Verify the server cert by default; sslInsecure opts out for self-signed dev only.
+      ssl: cfg.ssl ? { rejectUnauthorized: !cfg.sslInsecure } : undefined,
       connectionLimit: cfg.poolMax,
       connectTimeout: cfg.connectTimeoutMs,
       multipleStatements: false, // authoritative single-statement guard — never enable

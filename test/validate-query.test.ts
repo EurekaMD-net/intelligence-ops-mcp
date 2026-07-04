@@ -14,6 +14,7 @@ const relational = (dialect: "postgres" | "mysql"): ConnectorConfig => ({
   user: "ro",
   password: "",
   ssl: false,
+  sslInsecure: false,
   poolMax: 1,
   connectTimeoutMs: 5000,
   statementTimeoutMs: 30000,

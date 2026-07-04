@@ -80,6 +80,7 @@ export function loadConnectorConfig(
       user: env.PG_USER ?? "postgres",
       password: env.PG_PASSWORD ?? "",
       ssl: env.PG_SSL === "true",
+      sslInsecure: env.PG_SSL_INSECURE === "true",
       ...commonNumbers(env, "PG"),
     };
   }
@@ -109,6 +110,7 @@ export function loadConnectorConfig(
       user,
       password: env.MYSQL_PASSWORD ?? "",
       ssl: env.MYSQL_SSL === "true",
+      sslInsecure: env.MYSQL_SSL_INSECURE === "true",
       ...commonNumbers(env, "MYSQL"),
     };
   }

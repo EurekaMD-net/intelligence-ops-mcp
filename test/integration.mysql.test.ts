@@ -24,6 +24,7 @@ function configFromUrl(raw: string): ConnectorConfig {
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
     ssl: false,
+    sslInsecure: false,
     poolMax: 4,
     connectTimeoutMs: 5000,
     statementTimeoutMs: 30000,
