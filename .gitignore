@@ -3,6 +3,7 @@ dist/
 coverage/
 .vite/
 data/*.db
+data/*.db-*
 data/*.sqlite
 *.log
 .env

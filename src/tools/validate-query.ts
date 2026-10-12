@@ -4,6 +4,7 @@ import type { Connector } from "../connector/types.js";
 import type { AuditTrail } from "../audit/trail.js";
 import { validateSql, MAX_SQL_LENGTH } from "../validator/sql.js";
 import { ok, fail } from "./result.js";
+import { READ_ONLY } from "./annotations.js";
 
 export function registerValidateQuery(
   server: McpServer,
@@ -16,6 +17,7 @@ export function registerValidateQuery(
       title: "Validate a SQL query without running it",
       description:
         "Check a read-only SQL query (SELECT or WITH…SELECT) WITHOUT executing it: runs EXPLAIN (plan only, no ANALYZE) in a read-only transaction. Use this to confirm a generated query is valid and to inspect its plan before calling execute_query. Returns {valid:true, plan} or {valid:false, reason}. Never returns table data.",
+      annotations: READ_ONLY,
       inputSchema: {
         sql: z
           .string()

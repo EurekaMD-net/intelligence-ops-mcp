@@ -8,6 +8,7 @@ import { lineDiff } from "../studio/diff.js";
 import { runAndRender } from "./run-and-render.js";
 import { studioNameSchema as nameSchema } from "./studio-names.js";
 import { ok, fail } from "./result.js";
+import { DELETE, OVERWRITE, READ_ONLY } from "./annotations.js";
 
 /**
  * SQL Studio PRIMITIVES — versioned saved queries (promote → version → diff → run).
@@ -26,6 +27,7 @@ export function registerSavedQueries(
       title: "Save (promote) a query",
       description:
         "Persist a read-only SELECT/WITH query under a name for reuse. Each save creates a NEW version (the latest becomes current); nothing is overwritten, so you can diff or roll back. Returns the assigned version. Use run_saved_query to execute it.",
+      annotations: OVERWRITE,
       inputSchema: {
         name: nameSchema.describe('Logical name, e.g. "weekly_stockouts".'),
         sql: z
@@ -52,6 +54,7 @@ export function registerSavedQueries(
       title: "List saved queries",
       description:
         "List the current version of every saved query (name, version, description, created_at). Use get_saved_query for the SQL of a specific one.",
+      annotations: READ_ONLY,
       inputSchema: {},
     },
     async () => ok({ queries: store.listSavedQueries() }),
@@ -63,6 +66,7 @@ export function registerSavedQueries(
       title: "Get a saved query",
       description:
         "Return a saved query's SQL and metadata — the current version, or a specific `version` if given. Returns an error if the name/version does not exist.",
+      annotations: READ_ONLY,
       inputSchema: {
         name: nameSchema,
         version: z
@@ -89,6 +93,7 @@ export function registerSavedQueries(
       title: "Run a saved query",
       description:
         "Execute a saved query (current version, or a specific `version`) against the client's database and return rows + metadata — same read-only execution and optional `render` as execute_query. Pass `params` for its $1/? placeholders.",
+      annotations: READ_ONLY,
       inputSchema: {
         name: nameSchema,
         version: z
@@ -137,6 +142,7 @@ export function registerSavedQueries(
       title: "Diff two versions of a saved query",
       description:
         "Return a deterministic line-level diff between two versions of a saved query (lines tagged add/remove/context). Use to review what changed before promoting or rolling back.",
+      annotations: READ_ONLY,
       inputSchema: {
         name: nameSchema,
         from: z.number().int().positive().describe("The older version number."),
@@ -158,6 +164,7 @@ export function registerSavedQueries(
       title: "Delete a saved query",
       description:
         "Delete a saved query: a specific `version`, or (version omitted) ALL versions of the name. Returns how many rows were removed. If the current version is deleted, the highest remaining version becomes current.",
+      annotations: DELETE,
       inputSchema: {
         name: nameSchema,
         version: z

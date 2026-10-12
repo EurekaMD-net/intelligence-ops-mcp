@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Connector } from "../connector/types.js";
 import { ok, fail } from "./result.js";
+import { READ_ONLY } from "./annotations.js";
 
 export function registerListTables(
   server: McpServer,
@@ -13,6 +14,7 @@ export function registerListTables(
       title: "List tables",
       description:
         "List the base tables in the client's database schema, each with a row-count estimate and table comment. Call this FIRST to discover what data exists before describing or querying a table. Input: optional `schema` (defaults to the server's configured schema).",
+      annotations: READ_ONLY,
       inputSchema: {
         schema: z
           .string()

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Connector } from "../connector/types.js";
 import { ok, fail } from "./result.js";
+import { READ_ONLY } from "./annotations.js";
 
 export function registerDescribeTable(
   server: McpServer,
@@ -13,6 +14,7 @@ export function registerDescribeTable(
       title: "Describe a table",
       description:
         "Return a table's columns (name, type, nullability, default), primary keys, foreign-key references, indexes, and a row-count estimate. Use this to learn a table's shape before writing a query against it. Input: `table` (required) and optional `schema` (defaults to the server's configured schema).",
+      annotations: READ_ONLY,
       inputSchema: {
         table: z.string().describe("Table name to describe."),
         schema: z

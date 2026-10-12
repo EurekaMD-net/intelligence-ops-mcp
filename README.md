@@ -29,6 +29,9 @@ the phase roadmap; the build plan + Wilab-parity matrix live in the EurekaMS wor
 
 ## MCP tools
 
+Every tool ships MCP annotations: `readOnlyHint:true` on the 11 reads; `save_*` and `delete_*` are `readOnlyHint:false, destructiveHint:true`.
+The read-only annotations rely on each dialect's own single-statement enforcement (Postgres extended protocol, MySQL `multipleStatements:false`, Snowflake `MULTI_STATEMENT_COUNT=1`); the BigQuery path behind `IOMCP_ENABLE_UNVERIFIED_DIALECTS` has no such guard (`src/validator/sql.ts` splits with Postgres quoting only and `src/connector/bigquery.ts` runs the text as a script), so on BigQuery the annotations must not be trusted until a dry-run single-SELECT check lands.
+
 **Discovery + query (5):**
 
 | Tool                 | Input                                  | Returns                                                                                                                                   |

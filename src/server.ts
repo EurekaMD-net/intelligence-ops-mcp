@@ -24,7 +24,7 @@ export function createServer(
 ): McpServer {
   const server = new McpServer({
     name: "intelligence-ops-mcp",
-    version: "0.6.0",
+    version: "0.6.1",
   });
   // Phase 1 — core
   registerListTables(server, connector);

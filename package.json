@@ -1,6 +1,6 @@
 {
   "name": "intelligence-ops-mcp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "MCP server + read-only SQL layer for retail intelligence over the client's own Postgres or MySQL warehouse (experimental: BigQuery, Snowflake), with SQL-Studio + Automation primitives. EurekaMS Intelligence Ops; self-hosted alternative to Wilab.",

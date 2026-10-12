@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Connector } from "../connector/types.js";
 import { ok, fail } from "./result.js";
+import { READ_ONLY } from "./annotations.js";
 
 export function registerGetSchemaContext(
   server: McpServer,
@@ -13,6 +14,7 @@ export function registerGetSchemaContext(
       title: "Get full schema context",
       description:
         "Return the WHOLE schema in one call — every table with its columns (type, nullability, PK, FK) PLUS the foreign-key relationship graph — as LLM-ready context for writing correct SQL (joins, filters). Prefer this over many describe_table calls when planning a query. Input: optional `schema` (defaults to the server's configured schema).",
+      annotations: READ_ONLY,
       inputSchema: {
         schema: z
           .string()

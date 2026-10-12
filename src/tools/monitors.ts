@@ -11,6 +11,7 @@ import {
 } from "../studio/monitor.js";
 import { studioNameSchema as nameSchema } from "./studio-names.js";
 import { ok, fail } from "./result.js";
+import { DELETE, OVERWRITE, READ_ONLY } from "./annotations.js";
 
 /**
  * Automation PRIMITIVES — a monitor is a saved read-only query + a numeric condition. The
@@ -32,6 +33,7 @@ export function registerMonitors(
       title: "Save a monitor (alert condition)",
       description:
         "Persist a monitor: a read-only SELECT that returns a single numeric value, plus a comparison (operator + threshold). Upserts by name. The host evaluates it on a schedule via evaluate_monitor — this tool does NOT schedule or send anything.",
+      annotations: OVERWRITE,
       inputSchema: {
         name: nameSchema.describe('Logical name, e.g. "narvarte_stockout".'),
         sql: z
@@ -77,6 +79,7 @@ export function registerMonitors(
       title: "List monitors",
       description:
         "List every saved monitor with its SQL, operator, threshold, and description.",
+      annotations: READ_ONLY,
       inputSchema: {},
     },
     async () => ok({ monitors: store.listMonitors() }),
@@ -88,6 +91,7 @@ export function registerMonitors(
       title: "Evaluate a monitor now",
       description:
         "Run a saved monitor's query read-only RIGHT NOW and compare its value to the threshold. Returns {triggered, value, operator, threshold, rows}. The host calls this on its schedule and decides delivery; this tool never notifies anyone. `triggered:false` with `value:null` means the query returned no numeric.",
+      annotations: READ_ONLY,
       inputSchema: { name: nameSchema },
     },
     async ({ name }) => {
@@ -136,6 +140,7 @@ export function registerMonitors(
       title: "Delete a monitor",
       description:
         "Delete a saved monitor by name. Returns how many were removed.",
+      annotations: DELETE,
       inputSchema: { name: nameSchema },
     },
     async ({ name }) => ok({ deleted: store.deleteMonitor(name) }),

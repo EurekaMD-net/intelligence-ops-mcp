@@ -261,6 +261,11 @@ export class BigQueryConnector implements Connector {
     const want = Math.min(Math.max(1, Math.floor(limit ?? 100)), cap);
     const client = await this.bq();
     const start = Date.now();
+    // TODO(bigquery-guard): the read-only MCP annotations rely on each dialect's own
+    // single-statement enforcement (Postgres extended protocol, MySQL multipleStatements:false,
+    // Snowflake MULTI_STATEMENT_COUNT=1). This path has no such guard: validateSql splits with
+    // Postgres quoting only and BigQuery runs the text as a script, so the annotations must not
+    // be trusted on BigQuery until a dry-run single-SELECT check lands.
     const stream = client.createQueryStream(this.jobOpts(sql, params));
     const fetched = await collectCapped(stream, want + 1);
     const truncated = fetched.length > want;

@@ -4,6 +4,7 @@ import type { Connector } from "../connector/types.js";
 import type { AuditTrail } from "../audit/trail.js";
 import { MAX_SQL_LENGTH } from "../validator/sql.js";
 import { runAndRender } from "./run-and-render.js";
+import { READ_ONLY } from "./annotations.js";
 
 export function registerExecuteQuery(
   server: McpServer,
@@ -16,6 +17,7 @@ export function registerExecuteQuery(
       title: "Execute a read-only SQL query",
       description:
         "Run ONE read-only SQL query (SELECT or WITH…SELECT only) against the client's database and return rows + metadata. Writes are impossible: the query runs in a read-only transaction, so INSERT/UPDATE/DELETE/DDL are rejected by the engine. Pass user-supplied values via `params` ($1, $2, …) — never string-concatenate them. `limit` caps returned rows (default 100, hard-capped by the server). Every call is recorded in the audit trail; `truncated:true` means more rows exist.",
+      annotations: READ_ONLY,
       inputSchema: {
         sql: z
           .string()
